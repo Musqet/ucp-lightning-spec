@@ -106,7 +106,7 @@ Each profile's handler object follows the UCP handler shape. Full example
 ```json
 {
   "id": "com.musqet.bolt12",
-  "version": "2026-04-22",
+  "version": "2026-04-23",
   "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning-network-payment-handler.md",
   "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/bolt12.config.json",
   "available_instruments": [
@@ -181,9 +181,9 @@ following, in order:
    is the FX-converted amount set at invoice creation. Neither over- nor
    under-payment is accepted.
 
-Resubmission of the same `(checkout_id, payment_hash)` MUST be treated as
-idempotent — return the existing `payment_status`. This is handled by UCP's
-checkout-layer idempotency.
+Per UCP's checkout-layer idempotency, resubmission of the same
+`(checkout_id, payment_hash)` returns the existing `payment_status` without
+re-verifying.
 
 A Business without its own node MAY delegate these checks to its Invoice
 Provider via the `/verify` endpoint (see [Invoice API — Option B](#option-b-provider-mediated-verification)).
