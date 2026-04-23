@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ucp.dev/schemas/network/lightning/invoice-api.config.json",
+  "$id": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/invoice-api.config.json",
   "title": "Lightning Invoice API Handler Config",
-  "description": "Configuration for the network.lightning.invoice-api payment handler. The Business advertises a Provider-hosted HTTP endpoint that issues BOLT11 invoices; the Platform POSTs to it to obtain an invoice. Verification happens between Business and Provider and is not agent-visible.",
+  "description": "Configuration for the com.musqet.invoice-api payment handler. The Business advertises a Provider-hosted HTTP endpoint that issues BOLT11 invoices; the Platform POSTs to it to obtain an invoice. Verification happens between Business and Provider and is not agent-visible.",
   "type": "object",
   "required": ["merchant_id", "invoice_endpoint"],
   "properties": {

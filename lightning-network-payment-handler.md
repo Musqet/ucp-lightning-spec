@@ -16,7 +16,7 @@
 
 # Lightning Network Payment Handlers
 
-* **Handler Family:** `network.lightning.*`
+* **Handler Family:** `com.musqet.*`
 * **Version:** `2026-04-22` (Draft)
 * **Target UCP Version:** `2026-01-11`
 * **Status:** Community Draft — open for review
@@ -36,9 +36,9 @@ the Platform obtains a BOLT11 invoice** to pay:
 
 | Handler ID | Profile | Best for |
 |:-----------|:--------|:---------|
-| `network.lightning.bolt12`      | BOLT12 offers (no HTTP surface, no shared secret)                      | Non-custodial Businesses whose Lightning node already supports BOLT12. Agents request invoices directly from the node over the Lightning peer-to-peer network. |
-| `network.lightning.lnurl-pay`   | LNURL-pay / Lightning Address                                          | Businesses with existing LNURL-pay infrastructure (mobile wallet apps, Alby, BTCPayServer, etc.). Works with any Lightning node. Sats-only. |
-| `network.lightning.invoice-api` | Provider-mediated HTTP API for invoice issuance and (optional) verification | Businesses that want fiat-denominated invoices with FX locking or provider-managed invoice lifecycle. |
+| `com.musqet.bolt12`      | BOLT12 offers (no HTTP surface, no shared secret)                      | Non-custodial Businesses whose Lightning node already supports BOLT12. Agents request invoices directly from the node over the Lightning peer-to-peer network. |
+| `com.musqet.lnurl-pay`   | LNURL-pay / Lightning Address                                          | Businesses with existing LNURL-pay infrastructure (mobile wallet apps, Alby, BTCPayServer, etc.). Works with any Lightning node. Sats-only. |
+| `com.musqet.invoice-api` | Provider-mediated HTTP API for invoice issuance and (optional) verification | Businesses that want fiat-denominated invoices with FX locking or provider-managed invoice lifecycle. |
 
 All three profiles produce the **same payment credential**: a SHA-256
 preimage proving HTLC settlement. A Business can advertise one or many
@@ -116,13 +116,13 @@ whichever profile it can execute.
 
 ### Payment Instrument
 
-**Schema:** `https://ucp.dev/schemas/network/lightning/instrument.json`
+**Schema:** `https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json`
 
 ```json
 {
   "id": "ln_1a2b3c4d",
   "handler_id": "bolt12",
-  "type": "network.lightning.preimage",
+  "type": "com.musqet.preimage",
   "credential": { ... }
 }
 ```
@@ -130,17 +130,17 @@ whichever profile it can execute.
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
 | `id` | string | Yes | Platform-assigned instrument identifier. |
-| `handler_id` | string | Yes | Business-assigned handler instance id. MUST match the `id` of an entry in the Business's `payment.handlers[]` whose `name` is one of `network.lightning.bolt12`, `network.lightning.lnurl-pay`, or `network.lightning.invoice-api`. |
-| `type` | const `network.lightning.preimage` | Yes | Credential type. Same across all profiles. |
+| `handler_id` | string | Yes | Business-assigned handler instance id. MUST match the `id` of an entry in the Business's `payment.handlers[]` whose `name` is one of `com.musqet.bolt12`, `com.musqet.lnurl-pay`, or `com.musqet.invoice-api`. |
+| `type` | const `com.musqet.preimage` | Yes | Credential type. Same across all profiles. |
 | `credential` | object | Yes | See [Payment Credential](#payment-credential). |
 
 ### Payment Credential
 
-**Schema:** `https://ucp.dev/schemas/network/lightning/credential.json`
+**Schema:** `https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/credential.json`
 
 ```json
 {
-  "type": "network.lightning.preimage",
+  "type": "com.musqet.preimage",
   "preimage": "c3a1...d9f2",
   "checkout_id": "chk_01HXYZ..."
 }
@@ -148,7 +148,7 @@ whichever profile it can execute.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
-| `type` | const `network.lightning.preimage` | Yes | Credential type. |
+| `type` | const `com.musqet.preimage` | Yes | Credential type. |
 | `preimage` | 64-char hex | Yes | The 32-byte preimage revealed during HTLC settlement. |
 | `checkout_id` | string | Yes | The UCP checkout this payment settles. Carried in-credential so binding data is covered by checkout integrity, not transport headers. |
 
@@ -197,7 +197,7 @@ attempt for an already-paid checkout returns the previous result.
 
 ---
 
-## Profile: BOLT12 (`network.lightning.bolt12`)
+## Profile: BOLT12 (`com.musqet.bolt12`)
 
 ### When to use
 
@@ -208,7 +208,7 @@ Lightning peer-to-peer network.
 
 ### Handler Configuration
 
-**Schema:** `https://ucp.dev/schemas/network/lightning/bolt12.config.json`
+**Schema:** `https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json`
 
 ```json
 {
@@ -216,12 +216,12 @@ Lightning peer-to-peer network.
     "handlers": [
       {
         "id": "bolt12",
-        "name": "network.lightning.bolt12",
+        "name": "com.musqet.bolt12",
         "version": "2026-04-22",
-        "spec": "https://ucp.dev/specification/lightning-network-payment-handler/",
-        "config_schema": "https://ucp.dev/schemas/network/lightning/bolt12.config.json",
+        "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning-network-payment-handler.md",
+        "config_schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json",
         "instrument_schemas": [
-          "https://ucp.dev/schemas/network/lightning/instrument.json"
+          "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
         ],
         "config": {
           "offer": "lno1pgx9getnwss8vetrw3hhyuckyypnx7u30fshxcmjd9c8g7tsv9e8g",
@@ -278,9 +278,9 @@ POST /checkout-sessions/{checkout_id}/complete
   "payment_data": {
     "id": "ln_bolt12_01HXYZ",
     "handler_id": "bolt12",
-    "type": "network.lightning.preimage",
+    "type": "com.musqet.preimage",
     "credential": {
-      "type": "network.lightning.preimage",
+      "type": "com.musqet.preimage",
       "preimage": "c3a1...d9f2",
       "checkout_id": "chk_01HXYZ"
     }
@@ -305,7 +305,7 @@ POST /checkout-sessions/{checkout_id}/complete
 
 ---
 
-## Profile: LNURL-pay (`network.lightning.lnurl-pay`)
+## Profile: LNURL-pay (`com.musqet.lnurl-pay`)
 
 ### When to use
 
@@ -315,7 +315,7 @@ HTTP-based, widely supported by wallets, but sats-only.
 
 ### Handler Configuration
 
-**Schema:** `https://ucp.dev/schemas/network/lightning/lnurl-pay.config.json`
+**Schema:** `https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/lnurl-pay.config.json`
 
 ```json
 {
@@ -323,12 +323,12 @@ HTTP-based, widely supported by wallets, but sats-only.
     "handlers": [
       {
         "id": "lnurl-pay",
-        "name": "network.lightning.lnurl-pay",
+        "name": "com.musqet.lnurl-pay",
         "version": "2026-04-22",
-        "spec": "https://ucp.dev/specification/lightning-network-payment-handler/",
-        "config_schema": "https://ucp.dev/schemas/network/lightning/lnurl-pay.config.json",
+        "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning-network-payment-handler.md",
+        "config_schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/lnurl-pay.config.json",
         "instrument_schemas": [
-          "https://ucp.dev/schemas/network/lightning/instrument.json"
+          "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
         ],
         "config": {
           "lightning_address": "alice@example.com",
@@ -423,7 +423,7 @@ not a static Lightning Address.
 
 ---
 
-## Profile: Invoice API (`network.lightning.invoice-api`)
+## Profile: Invoice API (`com.musqet.invoice-api`)
 
 ### When to use
 
@@ -440,7 +440,7 @@ This profile is the most full-featured and operationally complex.
 
 ### Handler Configuration
 
-**Schema:** `https://ucp.dev/schemas/network/lightning/invoice-api.config.json`
+**Schema:** `https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/invoice-api.config.json`
 
 ```json
 {
@@ -448,12 +448,12 @@ This profile is the most full-featured and operationally complex.
     "handlers": [
       {
         "id": "invoice-api",
-        "name": "network.lightning.invoice-api",
+        "name": "com.musqet.invoice-api",
         "version": "2026-04-22",
-        "spec": "https://ucp.dev/specification/lightning-network-payment-handler/",
-        "config_schema": "https://ucp.dev/schemas/network/lightning/invoice-api.config.json",
+        "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning-network-payment-handler.md",
+        "config_schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/invoice-api.config.json",
         "instrument_schemas": [
-          "https://ucp.dev/schemas/network/lightning/instrument.json"
+          "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
         ],
         "config": {
           "merchant_id": "biz_abc123",
@@ -672,7 +672,7 @@ payment_hash = 4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a
 ## Governance & Licensing
 
 This spec was authored by [Musqet](https://musqet.tech) and is open for
-community review and contribution. The namespace `network.lightning.*` is
+community review and contribution. The namespace `com.musqet.*` is
 intentionally unowned — no single organization, including Musqet, controls
 it. The spec is published under
 [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
@@ -698,4 +698,4 @@ this file lives.
 
 | Version | Changes |
 |:--------|:--------|
-| 2026-04-22 | Initial community draft. Multi-profile handler family covering BOLT12, LNURL-pay, and Invoice API. Neutral namespace `network.lightning.*`. Shared preimage credential across all profiles. |
+| 2026-04-22 | Initial community draft. Multi-profile handler family covering BOLT12, LNURL-pay, and Invoice API. Neutral namespace `com.musqet.*`. Shared preimage credential across all profiles. |

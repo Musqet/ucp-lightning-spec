@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ucp.dev/schemas/network/lightning/instrument.json",
+  "$id": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json",
   "title": "Lightning Payment Instrument",
-  "description": "Payment instrument shared across the network.lightning.* handler family. Carries a preimage credential proving Lightning Network settlement.",
+  "description": "Payment instrument shared across the com.musqet.* handler family. Carries a preimage credential proving Lightning Network settlement.",
   "allOf": [
-    { "$ref": "https://ucp.dev/schemas/shopping/types/payment_instrument.json" }
+    { "$ref": "https://ucp.dev/2026-04-08/schemas/shopping/types/payment_instrument.json" }
   ],
   "type": "object",
   "required": ["id", "handler_id", "type", "credential"],
@@ -15,13 +15,13 @@
     },
     "handler_id": {
       "type": "string",
-      "description": "Business-assigned handler instance id, matching the id field of the entry in payment.handlers[] whose name is one of network.lightning.bolt12, network.lightning.lnurl-pay, or network.lightning.invoice-api."
+      "description": "Business-assigned handler instance id, matching the id field of the entry in payment.handlers[] whose name is one of com.musqet.bolt12, com.musqet.lnurl-pay, or com.musqet.invoice-api."
     },
     "type": {
-      "const": "network.lightning.preimage"
+      "const": "com.musqet.preimage"
     },
     "credential": {
-      "$ref": "https://ucp.dev/schemas/network/lightning/credential.json"
+      "$ref": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/credential.json"
     }
   }
 }
