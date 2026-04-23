@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ucp.dev/schemas/network/lightning/invoice-api.config.json",
+  "title": "Lightning Invoice API Handler Config",
+  "description": "Configuration for the network.lightning.invoice-api payment handler. The Business advertises a Provider-hosted HTTP endpoint that issues BOLT11 invoices; the Platform POSTs to it to obtain an invoice. Verification happens between Business and Provider and is not agent-visible.",
+  "type": "object",
+  "required": ["merchant_id", "invoice_endpoint"],
+  "properties": {
+    "merchant_id": {
+      "type": "string",
+      "description": "Public Business identifier at the Invoice Provider. Maps to PaymentIdentity.access_token. NOT a secret."
+    },
+    "invoice_endpoint": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "description": "Provider HTTPS endpoint for BOLT11 invoice creation. Called by the Platform during Acquisition. MUST use https."
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Optional human-readable label for payment-method UI."
+    },
+    "environment": {
+      "type": "string",
+      "enum": ["sandbox", "production"],
+      "default": "production",
+      "description": "The environment this Business accepts. Sandbox semantics are Provider-defined."
+    },
+    "supported_currencies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 3
+      },
+      "description": "Currency codes the Provider accepts for this Business (e.g., SAT, USD, EUR, GBP). When omitted, platforms SHOULD assume only SAT is supported."
+    }
+  },
+  "additionalProperties": false
+}

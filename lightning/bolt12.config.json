@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ucp.dev/schemas/network/lightning/bolt12.config.json",
+  "title": "Lightning BOLT12 Handler Config",
+  "description": "Configuration for the network.lightning.bolt12 payment handler. The Business advertises a static BOLT12 offer; the Platform requests an invoice directly from the Business's Lightning node over the Lightning peer-to-peer network.",
+  "type": "object",
+  "required": ["offer"],
+  "properties": {
+    "offer": {
+      "type": "string",
+      "pattern": "^lno1[a-z0-9]+$",
+      "description": "The Business's BOLT12 offer string (bech32-encoded). MAY be amountless or amount-fixed."
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Optional human-readable label for payment-method UI (e.g., 'Pay with Lightning')."
+    },
+    "supported_currencies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 3
+      },
+      "description": "Currency codes the offer accepts (e.g., SAT, USD). When omitted, platforms SHOULD assume SAT only."
+    }
+  },
+  "additionalProperties": false
+}

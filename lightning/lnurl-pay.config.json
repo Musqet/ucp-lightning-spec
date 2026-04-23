@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ucp.dev/schemas/network/lightning/lnurl-pay.config.json",
+  "title": "Lightning LNURL-pay Handler Config",
+  "description": "Configuration for the network.lightning.lnurl-pay payment handler. The Business advertises an LNURL-pay endpoint or a Lightning Address; the Platform executes the LUD-06 flow to obtain a BOLT11.",
+  "type": "object",
+  "oneOf": [{ "required": ["lightning_address"] }, { "required": ["lnurl"] }],
+  "properties": {
+    "lightning_address": {
+      "type": "string",
+      "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+      "description": "Lightning Address in the form user@host. Resolves to https://{host}/.well-known/lnurlp/{user}."
+    },
+    "lnurl": {
+      "type": "string",
+      "description": "LNURL-pay endpoint — either bech32-encoded (lnurl1...) or a direct https:// URL. Use a per-checkout dynamic URL when LUD-12 comments are unavailable."
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Optional human-readable label for payment-method UI."
+    },
+    "comment_supported": {
+      "type": "boolean",
+      "description": "Whether the endpoint accepts an LUD-12 comment parameter long enough to carry checkout_id. If false or omitted, Platforms MUST rely on a per-checkout dynamic URL for binding."
+    }
+  },
+  "additionalProperties": false
+}

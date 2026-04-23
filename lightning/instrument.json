@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ucp.dev/schemas/network/lightning/instrument.json",
+  "title": "Lightning Payment Instrument",
+  "description": "Payment instrument shared across the network.lightning.* handler family. Carries a preimage credential proving Lightning Network settlement.",
+  "allOf": [
+    { "$ref": "https://ucp.dev/schemas/shopping/types/payment_instrument.json" }
+  ],
+  "type": "object",
+  "required": ["id", "handler_id", "type", "credential"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Platform-assigned instrument identifier."
+    },
+    "handler_id": {
+      "type": "string",
+      "description": "Business-assigned handler instance id, matching the id field of the entry in payment.handlers[] whose name is one of network.lightning.bolt12, network.lightning.lnurl-pay, or network.lightning.invoice-api."
+    },
+    "type": {
+      "const": "network.lightning.preimage"
+    },
+    "credential": {
+      "$ref": "https://ucp.dev/schemas/network/lightning/credential.json"
+    }
+  }
+}
