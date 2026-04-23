@@ -597,14 +597,6 @@ Business than the authenticated caller.
 - Requires Business↔Provider trust for FX lock and settlement reporting
   (Option B).
 
-### Example Implementation
-
-[Musqet](https://musqet.com) operates a UCP Invoice Provider at
-`https://api.musqet.tech/ucp/lightning` supporting `SAT`, `USD`, `EUR`, and
-`GBP`, including Option B (`/verify`) support.
-Source lives under `apps/@api/src/routes/ucp/` in the Musqet monorepo and
-can serve as a reference for other Providers building this profile.
-
 ---
 
 ## Security Considerations
@@ -671,10 +663,8 @@ payment_hash = 4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a
 
 ## Governance & Licensing
 
-This spec was authored by [Musqet](https://musqet.tech) and is open for
-community review and contribution. The namespace `com.musqet.*` is
-intentionally unowned — no single organization, including Musqet, controls
-it. The spec is published under
+This spec was authored by [Musqet](https://musqet.com) and is open for
+community review and contribution. The spec is published under
 [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
 To propose changes, open an issue or PR against the UCP repository where
