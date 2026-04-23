@@ -17,9 +17,13 @@
 # Lightning Network Payment Handlers
 
 * **Handler Family:** `com.musqet.*`
-* **Version:** `2026-04-22` (Draft)
+* **Version:** `2026-04-23`
 * **Target UCP Version:** `2026-04-08`
 * **Authors:** [Musqet](https://musqet.com)
+
+The key words "MUST", "MUST NOT", "SHOULD", "SHOULD NOT", and "MAY" in this
+document are to be interpreted as described in [BCP 14](https://www.rfc-editor.org/info/bcp14)
+([RFC 2119](https://www.rfc-editor.org/rfc/rfc2119), [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174)).
 
 ## Introduction
 
@@ -103,8 +107,8 @@ Each profile's handler object follows the UCP handler shape. Full example
 {
   "id": "com.musqet.bolt12",
   "version": "2026-04-22",
-  "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning-network-payment-handler.md",
-  "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json",
+  "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning-network-payment-handler.md",
+  "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/bolt12.config.json",
   "available_instruments": [
     { "type": "com.musqet.preimage" }
   ],
@@ -123,7 +127,7 @@ differ. Profile sections below show only the `config` object.
 
 ### Payment Instrument
 
-**Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json)
+**Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/instrument.json)
 — extends UCP `payment_instrument.json` via `allOf`.
 
 | Field | Type | Required | Description |
@@ -137,7 +141,7 @@ differ. Profile sections below show only the `config` object.
 
 ### Payment Credential
 
-**Schema:** [`lightning/credential.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/credential.json)
+**Schema:** [`lightning/credential.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/credential.json)
 — extends UCP `payment_credential.json` via `allOf`.
 
 | Field | Type | Required | Description |
@@ -172,8 +176,14 @@ following, in order:
    - **Invoice API:** Provider's invoice record.
 3. **Settlement** — the Business's Lightning node MUST report `payment_hash`
    as *settled*. Never trusted from the Platform's claim alone.
-4. **Amount match** — settled sats MUST equal the Business's expected sats
-   for this `checkout_id`.
+4. **Amount match** — settled sats MUST exactly equal the sats amount
+   locked into the invoice at issuance. For fiat-denominated orders, this
+   is the FX-converted amount set at invoice creation. Neither over- nor
+   under-payment is accepted.
+
+Resubmission of the same `(checkout_id, payment_hash)` MUST be treated as
+idempotent — return the existing `payment_status`. This is handled by UCP's
+checkout-layer idempotency.
 
 A Business without its own node MAY delegate these checks to its Invoice
 Provider via the `/verify` endpoint (see [Invoice API — Option B](#option-b-provider-mediated-verification)).
@@ -220,7 +230,7 @@ Replace `handler_id` with `"com.musqet.lnurl-pay"` or `"com.musqet.invoice-api"`
 
 ### Handler Configuration
 
-**Schema:** [`lightning/bolt12.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json)
+**Schema:** [`lightning/bolt12.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/bolt12.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -274,7 +284,7 @@ credential.
 
 ### Handler Configuration
 
-**Schema:** [`lightning/lnurl-pay.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/lnurl-pay.config.json)
+**Schema:** [`lightning/lnurl-pay.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/lnurl-pay.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -345,7 +355,7 @@ credential.
 
 ### Handler Configuration
 
-**Schema:** [`lightning/invoice-api.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/invoice-api.config.json)
+**Schema:** [`lightning/invoice-api.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/invoice-api.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -487,10 +497,12 @@ to another Business.
 | **Settlement observed locally** | Business MUST confirm settlement via own node (Option A) or Provider (Option B). Platform's claim alone is never sufficient. |
 | **Invoice expiry** | Pay well before `expires_at`. Retry with same `checkout_id` if expired. |
 | **Amount tampering** | Business MUST verify paid sats against expected amount locked at invoice creation. |
+| **`checkout_id` entropy** | The `checkout_id` is the binding key across all profiles. Businesses MUST ensure checkout identifiers are unguessable (e.g., CSPRNG-generated, ≥128 bits of entropy). |
 | **Rate limiting** | Providers and LNURL endpoints MUST rate-limit per `(merchant_id, client-ip)`. |
 | **Cross-tenant info leak** | `/verify` MUST return `404 invoice_not_found` uniformly for non-owned and non-existent invoices. |
 | **LNURL metadata hash** | Platform MUST verify `description_hash == SHA256(metadata)` before paying (LUD-06). Prevents invoice-substitution attacks. |
 | **Comment integrity** | LUD-12 `comment` is over TLS. Business MUST persist comment atomically with invoice creation. Third-party LNURL services MUST be verified to persist comments. |
+| **No keysend / spontaneous payments** | Credentials derived from keysend or AMP spontaneous payments MUST be rejected. These payments carry no binding (`payer_note`, `comment`, or Provider record), so verification step 2 always fails. |
 | **Hex normalisation** | Preimage MUST be lowercase hex (`[0-9a-f]{64}`) before storage, comparison, or hashing. |
 
 ---

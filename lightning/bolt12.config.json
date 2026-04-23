@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json",
+  "$id": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/bolt12.config.json",
   "title": "Lightning BOLT12 Handler Config",
   "description": "Configuration for the com.musqet.bolt12 payment handler. The Business advertises a static BOLT12 offer; the Platform requests an invoice directly from the Business's Lightning node over the Lightning peer-to-peer network.",
   "type": "object",
