@@ -18,8 +18,7 @@
 
 * **Handler Family:** `com.musqet.*`
 * **Version:** `2026-04-22` (Draft)
-* **Target UCP Version:** `2026-01-11`
-* **Status:** Community Draft — open for review
+* **Target UCP Version:** `2026-04-08`
 * **Authors:** [Musqet](https://musqet.com)
 
 ## Introduction
@@ -118,6 +117,10 @@ whichever profile it can execute.
 
 **Schema:** `https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json`
 
+The instrument schema extends the UCP base `payment_instrument.json` via `allOf`
+and declares a `$defs.available_lightning_instrument` variant for use in
+`available_instruments` arrays.
+
 ```json
 {
   "id": "ln_1a2b3c4d",
@@ -133,6 +136,8 @@ whichever profile it can execute.
 | `handler_id` | string | Yes | Business-assigned handler instance id. MUST match the `id` of an entry in the Business's `payment.handlers[]` whose `name` is one of `com.musqet.bolt12`, `com.musqet.lnurl-pay`, or `com.musqet.invoice-api`. |
 | `type` | const `com.musqet.preimage` | Yes | Credential type. Same across all profiles. |
 | `credential` | object | Yes | See [Payment Credential](#payment-credential). |
+| `billing_address` | object | No | Not used for payment verification (Lightning has no AVS). MAY be provided when the Business requires a billing or shipping address for order fulfillment. |
+| `display` | object | No | Optional display metadata (`label`, `icon_url`) for Platform UIs. |
 
 ### Payment Credential
 
@@ -149,13 +154,24 @@ whichever profile it can execute.
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
 | `type` | const `com.musqet.preimage` | Yes | Credential type. |
-| `preimage` | 64-char hex | Yes | The 32-byte preimage revealed during HTLC settlement. |
+| `preimage` | 64-char lowercase hex | Yes | The 32-byte preimage revealed during HTLC settlement. MUST be normalised to lowercase hex (`[0-9a-f]{64}`). |
 | `checkout_id` | string | Yes | The UCP checkout this payment settles. Carried in-credential so binding data is covered by checkout integrity, not transport headers. |
 
 The credential is intentionally minimal. The `payment_hash` is derived by
 the Business as `SHA256(preimage)`; the BOLT11 the Platform paid is already
 held by the Business (keyed by `payment_hash`), so re-submitting it would
 add nothing a forger couldn't also provide.
+
+> **Credential expiry exemption.** UCP recommends that token-style
+> credentials carry an expiry field. A Lightning preimage is not a
+> reusable token — it is a one-time cryptographic proof of a specific
+> HTLC settlement. Its validity is bounded by the BOLT11 invoice's own
+> `expires_at`: once the invoice expires unpaid, no preimage can be
+> produced; once paid, the preimage is permanently valid as proof of that
+> settlement. Accordingly, no separate `expiry` or `ttl` field is
+> included in the credential. Implementations that need time-bounded
+> acceptance SHOULD enforce the invoice's `expires_at` during
+> verification step 3 (Settlement).
 
 ### Verification
 
@@ -175,8 +191,9 @@ following, in order:
    - **BOLT12:** the `payer_note` recorded on the settled invoice by the
      Business's node.
    - **LNURL-pay:** the LUD-12 `comment` recorded by the Business's LNURL
-     service, or — if comments are unavailable — the `checkout_id`
-     embedded in the per-checkout dynamic URL.
+     service. The endpoint MUST support LUD-12 comments with
+     `commentAllowed >= 64`; see
+     [Comment-based binding](#comment-based-binding).
    - **Invoice API:** the `checkout_id` persisted by the Invoice Provider
      at invoice creation.
 3. **Settlement** — the Business's Lightning node MUST report `payment_hash`
@@ -222,6 +239,9 @@ Lightning peer-to-peer network.
         "config_schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json",
         "instrument_schemas": [
           "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
+        ],
+        "available_instruments": [
+          { "type": "com.musqet.preimage" }
         ],
         "config": {
           "offer": "lno1pgx9getnwss8vetrw3hhyuckyypnx7u30fshxcmjd9c8g7tsv9e8g",
@@ -330,10 +350,12 @@ HTTP-based, widely supported by wallets, but sats-only.
         "instrument_schemas": [
           "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
         ],
+        "available_instruments": [
+          { "type": "com.musqet.preimage" }
+        ],
         "config": {
           "lightning_address": "alice@example.com",
-          "display_name": "Pay with Lightning",
-          "comment_supported": true
+          "display_name": "Pay with Lightning"
         }
       }
     ]
@@ -343,12 +365,29 @@ HTTP-based, widely supported by wallets, but sats-only.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
-| `lightning_address` | string | One of `lightning_address` or `lnurl` | Lightning Address (`user@host`). Resolves to `https://{host}/.well-known/lnurlp/{user}`. |
-| `lnurl` | string (bech32 `lnurl1...` or `https://...`) | One of `lightning_address` or `lnurl` | Direct LNURL-pay endpoint. |
+| `lightning_address` | string | One of `lightning_address` or `lnurl` | Lightning Address (`user@host`). Resolves to `https://{host}/.well-known/lnurlp/{user}`. The resolved endpoint MUST support LUD-12 comments with `commentAllowed >= 64`. |
+| `lnurl` | string (bech32 `lnurl1...` or `https://...`) | One of `lightning_address` or `lnurl` | Direct LNURL-pay endpoint. MUST support LUD-12 comments with `commentAllowed >= 64`. |
 | `display_name` | string | No | Human-readable label. |
-| `comment_supported` | boolean | No | Advertises whether the endpoint accepts a `comment` parameter (LUD-12). If `false`, Platforms MUST NOT rely on the `comment` field for `checkout_id` binding; see [Binding without comment support](#binding-without-comment-support). |
+
+> **Platform config.** No Platform-side onboarding or configuration is
+> required for this profile. The Platform only needs a Lightning wallet
+> capable of paying BOLT11 invoices. Accordingly, there is no separate
+> `platform_config` schema.
+>
+> **Response config.** No additional runtime state beyond the static
+> handler config is returned in checkout responses. The Platform resolves
+> the LNURL at payment time. Accordingly, there is no separate
+> `response_config` schema.
 
 ### Platform Integration
+
+#### Prerequisites
+
+1. A Lightning wallet capable of paying BOLT11 invoices.
+2. The Platform MUST validate TLS certificates on all HTTPS requests in
+   this flow (LNURL resolution, callback). Certificate errors MUST abort
+   the flow — the Platform MUST NOT fall back to HTTP or ignore invalid
+   certificates.
 
 #### Step 1: Resolve LNURL
 
@@ -369,15 +408,30 @@ Response (LUD-06):
 }
 ```
 
+The Platform MUST verify:
+
+- `tag` equals `"payRequest"`.
+- `commentAllowed` is present and `>= 64`. If the endpoint does not
+  support comments or `commentAllowed < 64`, the Platform MUST abort
+  with an error — the LNURL endpoint does not meet the requirements of
+  this profile.
+- `metadata` is retained for the description-hash check in Step 2.
+
 #### Step 2: Request BOLT11
 
 ```http
 GET {callback}?amount={msats}&comment={checkout_id}
 ```
 
-- `amount` MUST be within `[minSendable, maxSendable]` (millisats).
-- `comment` MUST be the UCP `checkout_id`, if `comment_supported` is `true`
-  and `commentAllowed >= len(checkout_id)`.
+- `amount` is the checkout total in millisats. Since this profile is
+  sats-only, the Business MUST have priced the order in sats and the
+  UCP checkout total MUST already be denominated in sats (or the
+  equivalent millisats value). The Platform converts: `msats = sats × 1000`.
+  `amount` MUST be within `[minSendable, maxSendable]`. If the checkout
+  total falls outside this range, the Platform MUST abort and surface a
+  `amount_out_of_range` error.
+- `comment` MUST be set to the UCP `checkout_id`. The Platform MUST
+  verify that `commentAllowed >= len(checkout_id)` (checked in Step 1).
 
 Response:
 
@@ -388,38 +442,78 @@ Response:
 }
 ```
 
+**Metadata hash verification (LUD-06).** The Platform MUST decode the
+returned BOLT11 invoice and verify that the invoice's `description_hash`
+equals `SHA256(metadata)`, where `metadata` is the raw string returned in
+Step 1. This prevents a MITM from substituting an invoice that pays a
+different destination. If the hash does not match, the Platform MUST NOT
+pay the invoice.
+
 #### Step 3: Pay and Capture Preimage
 
-Platform pays `pr` and captures the preimage.
+Platform pays `pr` and captures the 32-byte preimage revealed during HTLC
+settlement. The preimage MUST be normalised to lowercase hex before
+submission.
 
 #### Step 4: Submit Credential
 
 Same shape as [BOLT12 Step 4](#step-4-submit-credential), with
 `handler_id: "lnurl-pay"`.
 
+#### Retry on Invoice Expiry
+
+If the BOLT11 invoice expires before the Platform completes payment, the
+Platform MAY repeat Steps 1–3 with the same `checkout_id` to obtain a
+fresh invoice. The LNURL callback is stateless with respect to prior
+invoices, so a new `GET` with the same parameters produces a new BOLT11.
+The Business's LNURL endpoint will issue a new invoice (with a new
+`payment_hash`) and bind the same `checkout_id` via the `comment`
+parameter. The Platform MUST NOT reuse a preimage from a previously
+expired invoice.
+
 ### Business Integration
 
 1. Host an LNURL-pay endpoint (or a Lightning Address that proxies to one).
    Existing tools that provide this out-of-the-box: BTCPayServer,
    LNbits, Alby Hub, Phoenixd, Zeus.
-2. On payment, look up `payment_hash` on the node; read the recorded
+2. The endpoint MUST support LUD-12 comments with `commentAllowed >= 64`.
+   The Business's LNURL service MUST persist the `comment` value from
+   each callback request alongside the generated invoice's `payment_hash`.
+3. On payment, look up `payment_hash` on the node; read the recorded
    `comment` to recover `checkout_id`; match to order.
+4. Apply the four verification checks from [Verification](#verification).
 
-#### Binding without comment support
+#### Comment-based binding
 
-If the LNURL endpoint does not support comments (or has a restrictive
-`commentAllowed` length), the Business MUST use a per-checkout dynamic
-LNURL (generate a fresh LNURL with the `checkout_id` embedded in the URL
-path, e.g., `https://example.com/ln/chk_01HXYZ`). In that case, the
-`config.lnurl` advertised in the UCP Checkout profile is the dynamic URL,
-not a static Lightning Address.
+The `checkout_id` is carried to the Business via the LUD-12 `comment`
+parameter on the LNURL callback request. This is the sole binding
+mechanism for the LNURL-pay profile.
+
+**Requirements:**
+
+- The LNURL endpoint MUST advertise `commentAllowed >= 64` in the
+  LUD-06 response. A value of 64 accommodates typical UCP checkout
+  identifiers (ULIDs = 26 chars, UUIDs = 36 chars, prefixed IDs up to
+  ~60 chars). Implementations SHOULD use `commentAllowed: 128` or higher
+  to allow for future growth.
+- The LNURL endpoint MUST persist `(payment_hash, comment)` at
+  invoice-creation time. If the endpoint does not store the comment,
+  binding verification will fail and the payment cannot be matched to
+  an order.
+- If `commentAllowed` is absent or `< 64`, the endpoint does not qualify
+  for the `com.musqet.lnurl-pay` profile. The Business MUST either
+  upgrade the endpoint or use the `com.musqet.invoice-api` profile
+  instead.
 
 ### Limitations
 
-- **Sats only.** LNURL-pay amounts are millisats. Fiat pricing must be
-  converted to sats by the Business before advertising the UCP profile.
-- **Binding depends on LUD-12 or dynamic URLs.** Static Lightning
-  Addresses without comment support cannot safely carry `checkout_id`.
+- **Sats only.** LNURL-pay amounts are millisats. The Business MUST
+  price the order in sats and the UCP checkout total MUST be denominated
+  in sats. Fiat-to-sats conversion is the Business's responsibility and
+  MUST be completed before the checkout is created.
+- **LUD-12 comment support required.** Endpoints that do not support
+  LUD-12 comments with `commentAllowed >= 64` cannot use this profile;
+  use `com.musqet.invoice-api` instead.
 
 ---
 
@@ -454,6 +548,9 @@ This profile is the most full-featured and operationally complex.
         "config_schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/invoice-api.config.json",
         "instrument_schemas": [
           "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
+        ],
+        "available_instruments": [
+          { "type": "com.musqet.preimage" }
         ],
         "config": {
           "merchant_id": "biz_abc123",
@@ -603,15 +700,18 @@ Business than the authenticated caller.
 
 | Requirement | Description |
 |:------------|:------------|
-| **TLS everywhere** | All HTTP surfaces (LNURL endpoint, Invoice API) MUST use TLS. |
+| **TLS everywhere** | All HTTP surfaces (LNURL endpoint, Invoice API) MUST use TLS. Platforms MUST validate server certificates and MUST NOT fall back to plaintext HTTP or ignore certificate errors. |
 | **Credential binding** | `checkout_id` MUST be carried in the `credential` payload, not in headers or query strings, so it is covered by checkout integrity. |
-| **Issuance-time binding** | The Business (or Invoice Provider) MUST persist `(payment_hash → checkout_id)` at invoice-creation time. Verification rejects any credential whose recomputed `payment_hash` does not resolve to the submitted `checkout_id`. Per profile the bound value lives in `payer_note` (BOLT12), the LUD-12 `comment` or per-checkout dynamic URL (LNURL-pay), or the Provider's invoice record (Invoice API). |
+| **Issuance-time binding** | The Business (or Invoice Provider) MUST persist `(payment_hash → checkout_id)` at invoice-creation time. Verification rejects any credential whose recomputed `payment_hash` does not resolve to the submitted `checkout_id`. Per profile the bound value lives in `payer_note` (BOLT12), the LUD-12 `comment` (LNURL-pay), or the Provider's invoice record (Invoice API). |
 | **Preimage is not Platform-exclusive** | A Lightning preimage is revealed to every routing hop at HTLC settlement, so any intermediary may learn it before the Platform submits the credential. Businesses MUST treat the preimage as a shared secret: it proves *an* HTLC settled, not *who* paid. Authorization of the payment comes from the issuance-time binding above, not from preimage possession. |
 | **Settlement observed locally** | The Business MUST confirm settlement by consulting their own Lightning node (Option A) or their Invoice Provider (Option B). The Platform's claim of settlement is never sufficient on its own. |
-| **Invoice expiry** | Platforms SHOULD pay invoices well before `expires_at`. Expired invoices produce `invoice_expired` on verification. |
+| **Invoice expiry** | Platforms SHOULD pay invoices well before `expires_at`. Expired invoices produce `invoice_expired` on verification. Platforms MAY retry the invoice-acquisition flow with the same `checkout_id` if an invoice expires before payment; see the retry guidance in each profile. |
 | **Amount tampering (Platform-side)** | Because the Platform (agent) chooses the amount in the `invoice_request` / LNURL callback / Invoice API POST, the Business MUST re-check the paid sats against the expected amount for the order. Expected amount is the sats amount the Business (or its Provider, in `invoice-api`) locked at invoice creation. |
 | **Rate limiting** | Providers and LNURL endpoints MUST rate-limit invoice creation per `(merchant_id, client-ip)` to mitigate abuse. |
 | **Cross-tenant info leak (invoice-api)** | The `/verify` endpoint MUST NOT reveal whether a preimage belongs to another Business. Return `404 invoice_not_found` uniformly for non-owned and non-existent invoices. |
+| **LNURL metadata hash (LUD-06)** | Before paying a BOLT11 obtained via LNURL-pay, the Platform MUST verify that the invoice's `description_hash` equals `SHA256(metadata)` from the LUD-06 response. This prevents invoice-substitution attacks where a MITM replaces the callback response with an invoice paying a different node. |
+| **Comment integrity (LNURL-pay)** | The LUD-12 `comment` parameter carrying `checkout_id` is transmitted in plaintext over TLS. The binding's integrity depends on the Business's LNURL service faithfully persisting the comment alongside the `payment_hash`. Businesses MUST ensure their LNURL implementation records the `comment` atomically with invoice creation. If using a third-party LNURL service, the Business MUST verify that the service persists comments and makes them available for verification. |
+| **Hex normalisation** | Preimage values MUST be normalised to lowercase hex (`[0-9a-f]{64}`) before storage, comparison, or hashing. Mixed-case comparison could cause verification failures or allow duplicate credentials to be treated as distinct. |
 
 ---
 
@@ -634,6 +734,26 @@ Invoice API, `/verify`) SHOULD use these codes where applicable.
 | 410  | `invoice_expired` | Invoice has expired without being paid. |
 | 429  | `rate_limited` | Rate limit exceeded. |
 | 503  | `provider_unavailable` | Upstream Lightning or Provider temporarily unavailable. Recoverable. |
+
+### UCP Standard Error Mapping
+
+The following table maps Lightning handler error codes to UCP standard
+error categories. Platforms and Businesses MUST use the UCP error
+definitions when surfacing failures through UCP APIs.
+
+| Handler Code | UCP Error Category | UCP Guidance |
+|:-------------|:-------------------|:-------------|
+| `invalid_request` | `validation_error` | Non-retryable. The Platform should fix the request. |
+| `unsupported_currency` | `validation_error` | Non-retryable. The Platform should select a supported currency. |
+| `amount_out_of_range` | `validation_error` | Non-retryable. The Platform should adjust the amount. |
+| `binding_mismatch` | `payment_declined` | Non-retryable. Indicates a potential replay or misuse. |
+| `merchant_not_found` | `configuration_error` | Non-retryable. Business onboarding may be incomplete. |
+| `invoice_not_found` | `payment_declined` | Non-retryable. Preimage does not correspond to a known invoice. |
+| `amount_mismatch` | `conflict` | Non-retryable. An invoice for this checkout already exists with different terms. |
+| `lightning_not_enabled` | `configuration_error` | Non-retryable. Business must complete Lightning onboarding. |
+| `invoice_expired` | `payment_expired` | Retryable. The Platform may re-acquire an invoice with the same `checkout_id`. |
+| `rate_limited` | `rate_limited` | Retryable after backoff. |
+| `provider_unavailable` | `temporarily_unavailable` | Retryable after backoff. |
 
 ---
 
