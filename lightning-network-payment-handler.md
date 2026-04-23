@@ -251,6 +251,9 @@ Send a BOLT12 `invoice_request` to the issuer node:
 The issuer returns a BOLT12 invoice. Pay it and capture the 32-byte
 preimage. MUST be normalised to lowercase hex before submission.
 
+Then [complete the checkout](#completing-the-checkout) with the preimage
+credential.
+
 ### Business Integration
 
 1. Advertise the offer in `config.offer`.
@@ -314,6 +317,9 @@ MUST NOT pay (prevents invoice-substitution attacks).
 #### Step 3: Pay and Capture Preimage
 
 Pay the BOLT11 and capture the preimage. MUST be normalised to lowercase hex.
+
+Then [complete the checkout](#completing-the-checkout) with the preimage
+credential.
 
 ### Business Integration
 
@@ -412,6 +418,14 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 unguessable, Business-issued) acts as capability token. Providers MUST
 rate-limit per `(merchant_id, client-ip)`.
 
+#### Pay and Capture Preimage
+
+The Platform pays the `bolt11` from the response and captures the 32-byte
+preimage. MUST be normalised to lowercase hex.
+
+Then [complete the checkout](#completing-the-checkout) with the preimage
+credential.
+
 ### Business Integration
 
 #### Option A: Local verification
@@ -483,8 +497,10 @@ to another Business.
 
 ## Error Codes
 
-Responses use JSON `{ "code": "...", "message": "..." }`. All HTTP surfaces
-in this spec SHOULD use these codes.
+Responses use JSON `{ "code": "...", "message": "..." }`. These codes apply
+to the Invoice API endpoints (`invoice_endpoint`, `verify_endpoint`) and to
+UCP-layer error mapping. LNURL endpoints follow their own LUD-06 error
+conventions (`{ "status": "ERROR", "reason": "..." }`).
 
 | HTTP | Code | UCP Category | Meaning | Retryable |
 |:-----|:-----|:-------------|:--------|:----------|

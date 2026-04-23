@@ -43,15 +43,5 @@
       },
       "additionalProperties": false
     }
-  },
-  "$defs": {
-    "available_lightning_instrument": {
-      "type": "object",
-      "description": "Declares that this handler accepts Lightning preimage instruments.",
-      "required": ["type"],
-      "properties": {
-        "type": { "const": "com.musqet.preimage" }
-      }
-    }
   }
 }
