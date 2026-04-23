@@ -13,8 +13,8 @@
     },
     "lnurl": {
       "type": "string",
-      "pattern": "^(lnurl1|LNURL1|https://).+",
-      "description": "LNURL-pay endpoint — either bech32-encoded (lnurl1...) or a direct https:// URL. The endpoint MUST support LUD-12 comments with commentAllowed large enough to hold the checkout_id."
+      "pattern": "^(lnurl1[a-z0-9]+|https://.+)$",
+      "description": "LNURL-pay endpoint — either lowercase bech32-encoded (lnurl1...) or a direct https:// URL. The endpoint MUST support LUD-12 comments with commentAllowed large enough to hold the checkout_id."
     },
     "display_name": {
       "type": "string",

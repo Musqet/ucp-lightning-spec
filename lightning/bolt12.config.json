@@ -19,9 +19,9 @@
       "type": "array",
       "items": {
         "type": "string",
-        "minLength": 3,
-        "maxLength": 3
+        "pattern": "^[A-Z]{3}$"
       },
+      "default": ["SAT"],
       "description": "Currency codes the offer accepts (e.g., SAT, USD). When omitted, platforms SHOULD assume SAT only."
     }
   },

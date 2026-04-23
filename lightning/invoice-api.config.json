@@ -8,7 +8,7 @@
   "properties": {
     "merchant_id": {
       "type": "string",
-      "description": "Public Business identifier at the Invoice Provider. Maps to PaymentIdentity.access_token. NOT a secret."
+      "description": "Public Business identifier at the Invoice Provider. NOT a secret."
     },
     "invoice_endpoint": {
       "type": "string",
@@ -24,9 +24,9 @@
       "type": "array",
       "items": {
         "type": "string",
-        "minLength": 3,
-        "maxLength": 3
+        "pattern": "^[A-Z]{3}$"
       },
+      "default": ["SAT"],
       "description": "Currency codes the Provider accepts for this Business (e.g., SAT, USD, EUR, GBP). When omitted, platforms SHOULD assume only SAT is supported."
     }
   },

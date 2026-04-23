@@ -112,19 +112,21 @@ Full example (BOLT12):
 
 ```json
 {
-  "payment_handlers": {
-    "com.musqet.bolt12": [
-      {
-        "id": "bolt12_main",
-        "version": "2026-04-23",
-        "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning-network-payment-handler.md",
-        "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/bolt12.config.json",
-        "available_instruments": [
-          { "type": "com.musqet.preimage" }
-        ],
-        "config": { ... }
-      }
-    ]
+  "ucp": {
+    "payment_handlers": {
+      "com.musqet.bolt12": [
+        {
+          "id": "bolt12_main",
+          "version": "2026-04-23",
+          "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning-network-payment-handler.md",
+          "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/bolt12.config.json",
+          "available_instruments": [
+            { "type": "com.musqet.preimage" }
+          ],
+          "config": { ... }
+        }
+      ]
+    }
   }
 }
 ```
@@ -143,6 +145,9 @@ Profile sections below show only the `config` object.
 **Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/instrument.json)
 — extends UCP `payment_instrument.json` via `allOf`. This spec introduces
 the instrument type `com.musqet.preimage`, shared across all three profiles.
+The instrument `type` and credential `type` use the same constant because
+Lightning has a single credential form (preimage); there is no need for a
+separate category vs. discriminator split.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -150,6 +155,7 @@ the instrument type `com.musqet.preimage`, shared across all three profiles.
 | `handler_id` | string | Yes | MUST match the `id` of a handler instance under one of the `com.musqet.*` families in the Business's `payment_handlers`. |
 | `type` | const `com.musqet.preimage` | Yes | Credential type. Same across all profiles. |
 | `credential` | object | Yes | See [Payment Credential](#payment-credential). |
+| `selected` | boolean | No | `true` when this instrument is being submitted for completion. |
 | `billing_address` | object | No | Not used for payment verification (no AVS). MAY be provided for order fulfillment. |
 | `display` | object | No | Optional display metadata (`label`, `icon_url`) for Platform UIs. |
 
@@ -162,11 +168,17 @@ the instrument type `com.musqet.preimage`, shared across all three profiles.
 |:------|:-----|:---------|:------------|
 | `type` | const `com.musqet.preimage` | Yes | Credential type. |
 | `preimage` | 64-char lowercase hex | Yes | 32-byte preimage from HTLC settlement. MUST be lowercase (`[0-9a-f]{64}`). |
-| `checkout_id` | string | Yes | UCP checkout this payment settles. Carried in-credential so binding is covered by checkout integrity. |
+| `checkout_id` | string | Yes | UCP checkout this payment settles. Carried in-credential so binding is covered by checkout integrity. Length MUST fit within the binding channel: BOLT12 `payer_note` (64 bytes), LNURL `commentAllowed`, or Invoice API (no limit). |
 
 The credential is intentionally minimal. `payment_hash` is derived as
 `SHA256(preimage)`; the BOLT11 is already held by the Business, so
 re-submitting it adds nothing a forger couldn't also provide.
+
+> **Closed wire schemas.** Both `instrument.json` and `credential.json` use
+> `additionalProperties: false` alongside `allOf` references to UCP base
+> schemas. This intentionally locks the property set — if a future UCP
+> version adds base fields, these schemas must be updated to redeclare them.
+> The base `$ref` is pinned to a specific UCP version to make this explicit.
 
 > **Credential expiry exemption.** A Lightning preimage is a one-time proof
 > of a specific HTLC settlement, not a reusable token. Its validity is
@@ -207,8 +219,9 @@ Provider via the `/verify` endpoint (see [Invoice API — Option B](#option-b-pr
 If a BOLT11 invoice expires before the Platform completes payment, the
 Platform MAY repeat the profile-specific acquisition flow with the same
 `checkout_id` to obtain a fresh invoice. The binding mechanism carries the
-same `checkout_id` into the new invoice. The Platform MUST NOT reuse a
-preimage from a previously expired invoice.
+same `checkout_id` into the new invoice. The Platform MUST NOT submit a
+preimage from any prior invoice (expired or superseded) — only the preimage
+from the most recently paid invoice is valid.
 
 ### Completing the Checkout
 
@@ -273,7 +286,8 @@ constraints.
 Send a BOLT12 `invoice_request` to the issuer node:
 
 - `payer_note`: MUST be set to the UCP `checkout_id`. The Business's node
-  MUST accept `payer_note` values long enough to hold the `checkout_id`.
+  MUST persist `payer_note` alongside the issued invoice; the value MUST be
+  long enough to hold the `checkout_id` without truncation.
 - `invoice_request_amount`: the amount to pay, if the offer is amountless.
 
 #### Step 3: Pay and Capture Preimage
@@ -287,8 +301,8 @@ credential.
 ### Business Integration
 
 1. Advertise the offer in `config.offer`.
-2. The node MUST accept `payer_note` values long enough to hold the
-   `checkout_id` and persist them alongside the issued invoice.
+2. The node MUST persist `payer_note` alongside the issued invoice without
+   truncation.
 3. On credential receipt: compute `payment_hash = SHA256(preimage)`, look up
    in settled index, read `payer_note`, match to `credential.checkout_id`.
 4. Apply the four [Verification](#verification) checks.
@@ -426,7 +440,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
   "amount": 2500,
   "amount_sats": 45230,
   "fx_rate": 18.092,
-  "expires_at": "2026-04-22T12:34:56Z"
+  "expires_at": "2026-04-23T12:34:56Z"
 }
 ```
 
@@ -491,7 +505,7 @@ is between the Business and Provider).
   "amount": 2500,
   "amount_sats": 45230,
   "fx_rate": 18.092,
-  "settled_at": "2026-04-22T12:33:01Z"
+  "settled_at": "2026-04-23T12:33:01Z"
 }
 ```
 
@@ -544,7 +558,7 @@ conventions (`{ "status": "ERROR", "reason": "..." }`).
 | 404 | `invoice_not_found` | `payment_declined` | No matching invoice (includes cross-tenant hiding). | No |
 | 409 | `amount_mismatch` | `conflict` | Idempotent retry with different `(currency, amount)`. | No |
 | 409 | `lightning_not_enabled` | `configuration_error` | Business hasn't finished Lightning onboarding. | No |
-| 410 | `invoice_expired` | `payment_expired` | Invoice expired unpaid. Re-acquire with same `checkout_id`. | Yes |
+| 410 | `invoice_expired` | `payment_expired` | Invoice expired unpaid. Platform re-acquires a new invoice with the same `checkout_id`. | Yes (re-acquire) |
 | 429 | `rate_limited` | `rate_limited` | Rate limit exceeded. | Yes (backoff) |
 | 503 | `provider_unavailable` | `temporarily_unavailable` | Upstream temporarily unavailable. | Yes (backoff) |
 
@@ -564,7 +578,7 @@ mandate structure and binding semantics.
 
 ```
 preimage     = 0000000000000000000000000000000000000000000000000000000000000001
-payment_hash = 4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a
+payment_hash = ec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5
 ```
 
 (`SHA256(\x00...\x01)` over the 32 raw bytes.)

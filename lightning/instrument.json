@@ -23,6 +23,10 @@
     "credential": {
       "$ref": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/credential.json"
     },
+    "selected": {
+      "type": "boolean",
+      "description": "Set to true when this instrument is the one the Platform is submitting in a checkout completion."
+    },
     "billing_address": {
       "$ref": "https://ucp.dev/2026-04-08/schemas/shopping/types/postal_address.json",
       "description": "Not used for payment verification (Lightning has no AVS). MAY be provided when the Business requires a billing or shipping address for order fulfillment."
