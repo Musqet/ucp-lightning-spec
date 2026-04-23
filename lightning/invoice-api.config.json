@@ -20,12 +20,6 @@
       "type": "string",
       "description": "Optional human-readable label for payment-method UI."
     },
-    "environment": {
-      "type": "string",
-      "enum": ["sandbox", "production"],
-      "default": "production",
-      "description": "The environment this Business accepts. Sandbox semantics are Provider-defined."
-    },
     "supported_currencies": {
       "type": "array",
       "items": {

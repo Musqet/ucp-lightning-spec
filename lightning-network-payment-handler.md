@@ -101,7 +101,7 @@ Each profile's handler object follows the UCP handler shape. Full example
 
 ```json
 {
-  "id": "bolt12",
+  "id": "com.musqet.bolt12",
   "version": "2026-04-22",
   "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning-network-payment-handler.md",
   "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json",
@@ -199,7 +199,7 @@ POST /checkout-sessions/{checkout_id}/complete
     "instruments": [
       {
         "id": "ln_bolt12_01HXYZ",
-        "handler_id": "bolt12",
+        "handler_id": "com.musqet.bolt12",
         "type": "com.musqet.preimage",
         "credential": {
           "type": "com.musqet.preimage",
@@ -212,7 +212,7 @@ POST /checkout-sessions/{checkout_id}/complete
 }
 ```
 
-Replace `handler_id` with `"lnurl-pay"` or `"invoice-api"` as appropriate.
+Replace `handler_id` with `"com.musqet.lnurl-pay"` or `"com.musqet.invoice-api"` as appropriate.
 
 ---
 
@@ -243,7 +243,7 @@ constraints.
 Send a BOLT12 `invoice_request` to the issuer node:
 
 - `payer_note`: MUST be set to the UCP `checkout_id`. The Business's node
-  MUST accept `payer_note` values of at least 64 bytes.
+  MUST accept `payer_note` values long enough to hold the `checkout_id`.
 - `invoice_request_amount`: the amount to pay, if the offer is amountless.
 
 #### Step 3: Pay and Capture Preimage
@@ -257,8 +257,8 @@ credential.
 ### Business Integration
 
 1. Advertise the offer in `config.offer`.
-2. The node MUST accept `payer_note` values of at least 64 bytes and persist
-   them alongside the issued invoice.
+2. The node MUST accept `payer_note` values long enough to hold the
+   `checkout_id` and persist them alongside the issued invoice.
 3. On credential receipt: compute `payment_hash = SHA256(preimage)`, look up
    in settled index, read `payer_note`, match to `credential.checkout_id`.
 4. Apply the four [Verification](#verification) checks.
@@ -278,8 +278,8 @@ credential.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
-| `lightning_address` | string | One of `lightning_address` or `lnurl` | `user@host` → `https://{host}/.well-known/lnurlp/{user}`. Endpoint MUST support LUD-12 with `commentAllowed >= 64`. |
-| `lnurl` | string | One of `lightning_address` or `lnurl` | Bech32 `lnurl1...` or direct `https://` URL. MUST support LUD-12 with `commentAllowed >= 64`. |
+| `lightning_address` | string | One of `lightning_address` or `lnurl` | `user@host` → `https://{host}/.well-known/lnurlp/{user}`. Endpoint MUST support LUD-12 comments with `commentAllowed` large enough to hold the `checkout_id`. |
+| `lnurl` | string | One of `lightning_address` or `lnurl` | Bech32 `lnurl1...` or direct `https://` URL. MUST support LUD-12 comments with `commentAllowed` large enough to hold the `checkout_id`. |
 | `display_name` | string | No | Human-readable label. |
 
 ### Platform Integration
@@ -296,8 +296,8 @@ If `lnurl` is bech32, decode to HTTPS URL per LUD-01.
 
 The Platform MUST verify:
 - `tag` equals `"payRequest"`.
-- `commentAllowed` is present and `>= max(64, len(checkout_id))`.
-  If not met, abort — the endpoint does not qualify for this profile.
+- `commentAllowed` is present and `>= len(checkout_id)`.
+  If not met, abort — the endpoint cannot carry the `checkout_id`.
 - Retain `metadata` for the description-hash check in Step 2.
 
 #### Step 2: Request BOLT11
@@ -324,13 +324,14 @@ credential.
 ### Business Integration
 
 1. Host an LNURL-pay endpoint (or Lightning Address). The endpoint MUST
-   support LUD-12 with `commentAllowed >= 64`.
+   support LUD-12 comments with `commentAllowed` large enough to hold the
+   `checkout_id`.
 2. Persist `(payment_hash, comment)` atomically at invoice creation.
 3. On credential receipt: look up `payment_hash`, read `comment` to recover
    `checkout_id`, match to order.
 4. Apply the four [Verification](#verification) checks.
 
-> Endpoints without LUD-12 `commentAllowed >= 64` cannot use this profile;
+> Endpoints without LUD-12 comment support cannot use this profile;
 > use `com.musqet.invoice-api` instead.
 
 ### Limitations
@@ -351,7 +352,6 @@ credential.
 | `merchant_id` | string | Yes | Public Business identifier at the Provider. NOT a secret. |
 | `invoice_endpoint` | URI (`https://`) | Yes | Provider endpoint for BOLT11 invoice creation. |
 | `display_name` | string | No | Human-readable label. |
-| `environment` | `sandbox` \| `production` | No | Defaults to `production`. |
 | `supported_currencies` | array of 3-char codes | No | E.g. `["SAT", "USD", "EUR"]`. Omitted means `["SAT"]`. |
 
 The `verify_endpoint` is **not** in the UCP profile — verification is a
@@ -435,8 +435,8 @@ The Business verifies preimages locally using the four
 
 #### Option B: Provider-mediated verification
 
-The Business calls the Provider's `/verify` endpoint (private, authenticated
-with a Business API key).
+The Business calls the Provider's `/verify` endpoint (private, authentication
+is between the Business and Provider).
 
 ##### `POST {verify_endpoint}`
 
@@ -507,7 +507,7 @@ conventions (`{ "status": "ERROR", "reason": "..." }`).
 | 400 | `invalid_request` | `validation_error` | Schema validation or invalid field values. | No |
 | 400 | `unsupported_currency` | `validation_error` | Currency not in `supported_currencies`. | No |
 | 400 | `amount_out_of_range` | `validation_error` | Amount violates min/max. | No |
-| 403 | `binding_mismatch` | `payment_declined` | Preimage bound to a different `checkout_id` or Business. | No |
+| 403 | `binding_mismatch` | `payment_declined` | Preimage bound to a different `checkout_id` (same Business). | No |
 | 404 | `merchant_not_found` | `configuration_error` | Unknown `merchant_id`. | No |
 | 404 | `invoice_not_found` | `payment_declined` | No matching invoice (includes cross-tenant hiding). | No |
 | 409 | `amount_mismatch` | `conflict` | Idempotent retry with different `(currency, amount)`. | No |
