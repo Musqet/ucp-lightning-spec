@@ -90,7 +90,7 @@ management / custody models are out of scope.
      │                    │  5. Verify (§Verification — Option A or B)    │
      │                    │─────────────────────────────────────────>     │
      │                    │                                               │
-     │  payment_status    │                                               │
+     │  completion response│                                               │
      │<───────────────────│                                               │
 ```
 
@@ -100,25 +100,38 @@ management / custody models are out of scope.
 
 ### Handler Declaration
 
-Each profile's handler object follows the UCP handler shape. Full example
-(BOLT12):
+Businesses advertise payment handlers in their UCP profile at
+`/.well-known/ucp`. In the `payment_handlers` object, the **family key**
+(e.g., `com.musqet.bolt12`) identifies the handler type. Each handler
+instance beneath it has a Business-assigned **instance `id`** that can be
+any string. When a Business has a single instance per family, the `id` often
+mirrors the family key, but a Business with multiple instances (e.g., two
+Invoice API Providers) MUST use distinct ids.
+
+Full example (BOLT12):
 
 ```json
 {
-  "id": "com.musqet.bolt12",
-  "version": "2026-04-23",
-  "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning-network-payment-handler.md",
-  "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/bolt12.config.json",
-  "available_instruments": [
-    { "type": "com.musqet.preimage" }
-  ],
-  "config": { ... }
+  "payment_handlers": {
+    "com.musqet.bolt12": [
+      {
+        "id": "bolt12_main",
+        "version": "2026-04-23",
+        "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning-network-payment-handler.md",
+        "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/bolt12.config.json",
+        "available_instruments": [
+          { "type": "com.musqet.preimage" }
+        ],
+        "config": { ... }
+      }
+    ]
+  }
 }
 ```
 
-The `id`, `version`, `spec`, `schema`, and `available_instruments` fields
-follow the same pattern for all three profiles — only `schema` and `config`
-differ. Profile sections below show only the `config` object.
+The `version`, `spec`, `schema`, and `available_instruments` fields follow
+the same pattern for all three profiles — only `schema` and `config` differ.
+Profile sections below show only the `config` object.
 
 > **No `platform_config` or `response_config`.** None of the three profiles
 > require Platform-side onboarding or return additional runtime state beyond
@@ -128,12 +141,13 @@ differ. Profile sections below show only the `config` object.
 ### Payment Instrument
 
 **Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/instrument.json)
-— extends UCP `payment_instrument.json` via `allOf`.
+— extends UCP `payment_instrument.json` via `allOf`. This spec introduces
+the instrument type `com.musqet.preimage`, shared across all three profiles.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
 | `id` | string | Yes | Platform-assigned instrument identifier. |
-| `handler_id` | string | Yes | MUST match a `com.musqet.*` entry in `payment.handlers[]`. |
+| `handler_id` | string | Yes | MUST match the `id` of a handler instance under one of the `com.musqet.*` families in the Business's `payment_handlers`. |
 | `type` | const `com.musqet.preimage` | Yes | Credential type. Same across all profiles. |
 | `credential` | object | Yes | See [Payment Credential](#payment-credential). |
 | `billing_address` | object | No | Not used for payment verification (no AVS). MAY be provided for order fulfillment. |
@@ -181,9 +195,9 @@ following, in order:
    is the FX-converted amount set at invoice creation. Neither over- nor
    under-payment is accepted.
 
-Per UCP's checkout-layer idempotency, resubmission of the same
-`(checkout_id, payment_hash)` returns the existing `payment_status` without
-re-verifying.
+If the Business has already verified and accepted a credential for a given
+`(checkout_id, payment_hash)`, it MUST return the existing result rather
+than re-fulfilling the order.
 
 A Business without its own node MAY delegate these checks to its Invoice
 Provider via the `/verify` endpoint (see [Invoice API — Option B](#option-b-provider-mediated-verification)).
@@ -209,7 +223,7 @@ POST /checkout-sessions/{checkout_id}/complete
     "instruments": [
       {
         "id": "ln_bolt12_01HXYZ",
-        "handler_id": "com.musqet.bolt12",
+        "handler_id": "bolt12_main",
         "type": "com.musqet.preimage",
         "credential": {
           "type": "com.musqet.preimage",
@@ -222,7 +236,13 @@ POST /checkout-sessions/{checkout_id}/complete
 }
 ```
 
-Replace `handler_id` with `"com.musqet.lnurl-pay"` or `"com.musqet.invoice-api"` as appropriate.
+Set `handler_id` to the Business-assigned instance `id` of the handler used.
+
+> **Note:** This example shows only the Lightning-specific payload.
+> UCP-required fields (`Idempotency-Key` header, `signals`, `selected` on
+> the instrument) are omitted for brevity. See the
+> [UCP Checkout REST spec](https://ucp.dev/specification/checkout-rest/)
+> for the full request shape.
 
 ---
 
@@ -532,10 +552,11 @@ conventions (`{ "status": "ERROR", "reason": "..." }`).
 
 ## AP2 Compatibility
 
-Compatible with `dev.ucp.shopping.ap2_mandate`. The mandate's
-`payment_method` MAY reference any handler ID. The credential's
-`checkout_id` MUST match the mandate's bound `checkout_id`. No additional
-Lightning-specific mandate fields are required.
+The preimage credential MAY be submitted alongside a presented AP2 mandate
+that binds the same UCP checkout session. No additional Lightning-specific
+mandate fields are required. See the
+[AP2 Protocol Spec](https://ucp.dev/specification/ap2-mandates/) for
+mandate structure and binding semantics.
 
 ---
 
