@@ -16,7 +16,7 @@
 
 # Lightning Network Payment Handlers
 
-* **Handler Family:** `com.musqet.*`
+* **Handler Families:** `com.musqet.bolt12`, `com.musqet.lnurl-pay`, `com.musqet.invoice-api`
 * **Version:** `2026-04-23`
 * **Target UCP Version:** `2026-04-08`
 * **Authors:** [Musqet](https://musqet.com)
@@ -168,7 +168,7 @@ separate category vs. discriminator split.
 |:------|:-----|:---------|:------------|
 | `type` | const `com.musqet.preimage` | Yes | Credential type. |
 | `preimage` | 64-char lowercase hex | Yes | 32-byte preimage from HTLC settlement. MUST be lowercase (`[0-9a-f]{64}`). |
-| `checkout_id` | string | Yes | UCP checkout this payment settles. Carried in-credential so binding is covered by checkout integrity. Length MUST fit within the binding channel: BOLT12 `payer_note` (64 bytes), LNURL `commentAllowed`, or Invoice API (no limit). |
+| `checkout_id` | string | Yes | UCP checkout this payment settles. Carried in-credential so binding is covered by checkout integrity. Length MUST fit within the binding channel: BOLT12 `payer_note` (implementation-dependent), LNURL `commentAllowed`, or Invoice API (no limit). |
 
 The credential is intentionally minimal. `payment_hash` is derived as
 `SHA256(preimage)`; the BOLT11 is already held by the Business, so
@@ -193,23 +193,28 @@ re-submitting it adds nothing a forger couldn't also provide.
 A Business verifying a preimage credential MUST perform all of the
 following, in order:
 
-1. **Compute and locate** — `payment_hash := SHA256(preimage)`, look up in
+1. **Session match** — `credential.checkout_id` MUST equal the
+   `checkout_id` of the checkout session being completed (i.e., the
+   `{checkout_id}` in the URL path). Reject otherwise.
+2. **Compute and locate** — `payment_hash := SHA256(preimage)`, look up in
    the Business's invoice index. If absent, reject with `invoice_not_found`.
-2. **Binding** — the invoice record's `checkout_id` MUST equal
+3. **Binding** — the invoice record's `checkout_id` MUST equal
    `credential.checkout_id`. Per profile, the bound value lives in:
    - **BOLT12:** `payer_note` on the settled invoice.
    - **LNURL-pay:** LUD-12 `comment` recorded by the LNURL service.
    - **Invoice API:** Provider's invoice record.
-3. **Settlement** — the Business's Lightning node MUST report `payment_hash`
+4. **Settlement** — the Business's Lightning node MUST report `payment_hash`
    as *settled*. Never trusted from the Platform's claim alone.
-4. **Amount match** — settled sats MUST exactly equal the sats amount
+5. **Amount match** — settled sats MUST exactly equal the sats amount
    locked into the invoice at issuance. For fiat-denominated orders, this
    is the FX-converted amount set at invoice creation. Neither over- nor
    under-payment is accepted.
 
 If the Business has already verified and accepted a credential for a given
-`(checkout_id, payment_hash)`, it MUST return the existing result rather
-than re-fulfilling the order.
+`checkout_id`, it MUST return the existing result for identical
+`(checkout_id, payment_hash)` pairs, and MUST reject completions with a
+different `payment_hash` for that `checkout_id`. This prevents
+double-fulfillment when invoice retry produces two paid invoices.
 
 A Business without its own node MAY delegate these checks to its Invoice
 Provider via the `/verify` endpoint (see [Invoice API — Option B](#option-b-provider-mediated-verification)).
@@ -240,7 +245,7 @@ POST /checkout-sessions/{checkout_id}/complete
         "type": "com.musqet.preimage",
         "credential": {
           "type": "com.musqet.preimage",
-          "preimage": "c3a1...d9f2",
+          "preimage": "<64-hex-preimage>",
           "checkout_id": "chk_01HXYZ"
         }
       }
@@ -305,7 +310,7 @@ credential.
    truncation.
 3. On credential receipt: compute `payment_hash = SHA256(preimage)`, look up
    in settled index, read `payer_note`, match to `credential.checkout_id`.
-4. Apply the four [Verification](#verification) checks.
+4. Apply the five [Verification](#verification) checks.
 
 ### Limitations
 
@@ -373,7 +378,7 @@ credential.
 2. Persist `(payment_hash, comment)` atomically at invoice creation.
 3. On credential receipt: look up `payment_hash`, read `comment` to recover
    `checkout_id`, match to order.
-4. Apply the four [Verification](#verification) checks.
+4. Apply the five [Verification](#verification) checks.
 
 > Endpoints without LUD-12 comment support cannot use this profile;
 > use `com.musqet.invoice-api` instead.
@@ -425,7 +430,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 | `merchant_id` | string | Yes | MUST match the Business's UCP profile. |
 | `checkout_id` | string | Yes | Idempotency key scoped per `merchant_id`. |
 | `currency` | string, 3 chars | Yes | `SAT` or ISO-4217 code. MUST be in `supported_currencies`. |
-| `amount` | integer, ≥ 1 | Yes | Minor units of `currency`. |
+| `amount` | integer, ≥ 1 | Yes | Minor units of `currency` (cents for USD, pence for GBP). For `SAT`, amount is whole sats (sat is its own minor unit). |
 | `description` | string | No | Human-readable invoice description. |
 | `expiry_seconds` | integer, ≥ 1 | No | Defaults to 600 (10 min). |
 
@@ -435,7 +440,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 {
   "invoice_id": "inv_01HXYZ",
   "bolt11": "lnbc10u1p3xnhl2...",
-  "payment_hash": "8d2a...7e1b",
+  "payment_hash": "<64-hex-payment-hash>",
   "currency": "USD",
   "amount": 2500,
   "amount_sats": 45230,
@@ -451,7 +456,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 | `payment_hash` | 64-char hex | Informational; Business re-derives from preimage. |
 | `currency`, `amount` | | Echo of request. |
 | `amount_sats` | integer | Sats amount locked at issuance. |
-| `fx_rate` | number | `amount_sats / amount`. Omitted when `currency == "SAT"`. Locked at issuance. |
+| `fx_rate` | number | `amount_sats / amount` (sats per minor unit of `currency`, e.g., sats per cent for USD). Omitted when `currency == "SAT"`. Locked at issuance. |
 | `expires_at` | ISO-8601 | Invoice expiry. |
 
 **Idempotency:** same `(merchant_id, checkout_id)` with matching
@@ -488,7 +493,7 @@ is between the Business and Provider).
 
 ```json
 {
-  "preimage": "c3a1...d9f2",
+  "preimage": "<64-hex-preimage>",
   "checkout_id": "chk_01HXYZ"
 }
 ```
@@ -500,7 +505,7 @@ is between the Business and Provider).
   "valid": true,
   "settled": true,
   "invoice_id": "inv_01HXYZ",
-  "payment_hash": "8d2a...7e1b",
+  "payment_hash": "<64-hex-payment-hash>",
   "currency": "USD",
   "amount": 2500,
   "amount_sats": 45230,
@@ -557,7 +562,7 @@ conventions (`{ "status": "ERROR", "reason": "..." }`).
 | 404 | `merchant_not_found` | `configuration_error` | Unknown `merchant_id`. | No |
 | 404 | `invoice_not_found` | `payment_declined` | No matching invoice (includes cross-tenant hiding). | No |
 | 409 | `amount_mismatch` | `conflict` | Idempotent retry with different `(currency, amount)`. | No |
-| 409 | `lightning_not_enabled` | `configuration_error` | Business hasn't finished Lightning onboarding. | No |
+| 409 | `lightning_not_enabled` | `configuration_error` | Business hasn't finished Lightning onboarding. | Yes (after onboarding) |
 | 410 | `invoice_expired` | `payment_expired` | Invoice expired unpaid. Platform re-acquires a new invoice with the same `checkout_id`. | Yes (re-acquire) |
 | 429 | `rate_limited` | `rate_limited` | Rate limit exceeded. | Yes (backoff) |
 | 503 | `provider_unavailable` | `temporarily_unavailable` | Upstream temporarily unavailable. | Yes (backoff) |
