@@ -802,10 +802,3 @@ this file lives.
 - **UCP Payment Handler Guide:** [ucp.dev/specification/payment-handler-guide](https://ucp.dev/specification/payment-handler-guide/)
 - **UCP AP2 Mandates:** [ucp.dev/specification/ap2-mandates](https://ucp.dev/specification/ap2-mandates/)
 
----
-
-## Changelog
-
-| Version | Changes |
-|:--------|:--------|
-| 2026-04-22 | Initial community draft. Multi-profile handler family covering BOLT12, LNURL-pay, and Invoice API. Neutral namespace `com.musqet.*`. Shared preimage credential across all profiles. |
