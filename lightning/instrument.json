@@ -15,7 +15,7 @@
     },
     "handler_id": {
       "type": "string",
-      "description": "Business-assigned handler instance id, matching the id field of the entry in payment.handlers[] whose name is one of com.musqet.bolt12, com.musqet.lnurl-pay, or com.musqet.invoice-api."
+      "description": "Business-assigned handler instance id, matching the id of an entry in payment.handlers[] that uses one of the com.musqet.* handler schemas."
     },
     "type": {
       "const": "com.musqet.preimage"

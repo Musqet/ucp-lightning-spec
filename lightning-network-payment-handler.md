@@ -44,23 +44,8 @@ preimage proving HTLC settlement. A Business can advertise one or many
 profiles in a single `payment.handlers` array; the Platform selects
 whichever profile it can execute.
 
-### Why Lightning
-
-- **Settlement finality in seconds**, not days.
-- **Low fees** for both small and large values.
-- **Cryptographic proof of payment**: a 32-byte preimage that any party
-  (shopper, agent, auditor) can verify against the payment hash. No acquirer
-  dispute window.
-- **Global reach**: no issuer geography, no chargeback risk.
-
-### Out of Scope
-
-- On-chain Bitcoin payments (a separate handler).
-- Lightning *routing* (handled by the Lightning Network itself).
-- Key management and custody models at the Business — that is the Business's
-  choice and outside UCP. This spec does not require custody; it only requires
-  that the Business (or a service acting on their behalf) can produce BOLT11
-  invoices and observe settlement.
+On-chain Bitcoin payments, Lightning routing, and Business key
+management / custody models are out of scope.
 
 ---
 
@@ -72,10 +57,9 @@ whichever profile it can execute.
 | **Platform** | Discovers the handler, executes the profile-specific flow to obtain a BOLT11, pays it, captures the preimage, and returns it as the payment credential. | A Lightning wallet capable of paying BOLT11 invoices. |
 | **Invoice Provider** *(invoice-api profile only)* | HTTP service that issues BOLT11 invoices on behalf of the Business and optionally verifies preimages. MAY be the Business itself or a third party. | Owns or has delegated access to the Business's Lightning node. |
 
-> **Note on Terminology:** Throughout this document, "Business" is the UCP
-> participant term. The Lightning ecosystem typically uses "merchant"; both
-> refer to the same actor. Schema field names retain `merchant_*` where that
-> matches common industry nomenclature (e.g., `merchant_id`).
+> **Terminology:** "Business" is UCP's term for the entity the Lightning
+> ecosystem calls "merchant". Schema fields retain `merchant_*` where that
+> matches existing industry nomenclature.
 
 ### Flow (profile-agnostic)
 
@@ -133,7 +117,7 @@ and declares a `$defs.available_lightning_instrument` variant for use in
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
 | `id` | string | Yes | Platform-assigned instrument identifier. |
-| `handler_id` | string | Yes | Business-assigned handler instance id. MUST match the `id` of an entry in the Business's `payment.handlers[]` whose `name` is one of `com.musqet.bolt12`, `com.musqet.lnurl-pay`, or `com.musqet.invoice-api`. |
+| `handler_id` | string | Yes | Business-assigned handler instance id. MUST match the `id` of an entry in the Business's `payment.handlers[]` that uses one of the `com.musqet.*` handler schemas. |
 | `type` | const `com.musqet.preimage` | Yes | Credential type. Same across all profiles. |
 | `credential` | object | Yes | See [Payment Credential](#payment-credential). |
 | `billing_address` | object | No | Not used for payment verification (Lightning has no AVS). MAY be provided when the Business requires a billing or shipping address for order fulfillment. |
@@ -142,6 +126,9 @@ and declares a `$defs.available_lightning_instrument` variant for use in
 ### Payment Credential
 
 **Schema:** `https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/credential.json`
+
+The credential schema extends the UCP base `payment_credential.json` via
+`allOf`.
 
 ```json
 {
@@ -233,13 +220,9 @@ Lightning peer-to-peer network.
     "handlers": [
       {
         "id": "bolt12",
-        "name": "com.musqet.bolt12",
         "version": "2026-04-22",
         "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning-network-payment-handler.md",
-        "config_schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json",
-        "instrument_schemas": [
-          "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
-        ],
+        "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/bolt12.config.json",
         "available_instruments": [
           { "type": "com.musqet.preimage" }
         ],
@@ -260,13 +243,21 @@ Lightning peer-to-peer network.
 | `display_name` | string | No | Human-readable label for the Platform's payment-method UI. |
 | `supported_currencies` | array of ISO-4217 or `SAT` | No | If the offer is denominated in fiat (`iso4217` in BOLT12), list the supported codes here. Defaults to `["SAT"]`. |
 
+> **Platform config.** No Platform-side onboarding is required. The
+> Platform only needs a Lightning wallet capable of sending BOLT12
+> `invoice_request` messages. There is no separate `platform_config`
+> schema.
+>
+> **Response config.** No additional runtime state beyond the static
+> handler config is returned in checkout responses. There is no separate
+> `response_config` schema.
+
 ### Platform Integration
 
 #### Prerequisites
 
-1. A Lightning wallet that can send BOLT12 `invoice_request` messages.
-2. A BOLT11-capable payment path (BOLT12 invoices are still BOLT11 under the
-   hood at settlement time; Platforms pay them like any other invoice).
+1. A Lightning wallet that can send BOLT12 `invoice_request` messages and
+   pay the resulting invoices.
 
 #### Step 1: Decode the Offer
 
@@ -277,44 +268,61 @@ the issuer node id and any amount / currency constraints.
 
 The Platform sends a BOLT12 `invoice_request` to the issuer node, including:
 
-- `payer_note`: MUST be set to the UCP `checkout_id`. This is the binding
-  mechanism — the Business reads `payer_note` from the settled invoice to
-  correlate payment to order.
+- `payer_note`: MUST be set to the UCP `checkout_id`. The Business's
+  Lightning node MUST accept `payer_note` values of at least 64 bytes so
+  that typical UCP checkout identifiers are not truncated. This is the
+  binding mechanism — the Business reads `payer_note` from the settled
+  invoice to correlate payment to order.
 - `invoice_request_amount`: the amount to pay, if the offer is amountless.
 
 #### Step 3: Receive BOLT12 Invoice & Pay
 
 The issuer node returns a BOLT12 invoice. The Platform pays it and captures
-the 32-byte preimage revealed during settlement.
+the 32-byte preimage revealed during settlement. The preimage MUST be
+normalised to lowercase hex before submission.
 
 #### Step 4: Submit Credential
 
-The Platform completes the checkout with:
+The Platform completes the checkout by submitting the preimage credential
+in the UCP `payment.instruments` array:
 
 ```json
 POST /checkout-sessions/{checkout_id}/complete
 
 {
-  "payment_data": {
-    "id": "ln_bolt12_01HXYZ",
-    "handler_id": "bolt12",
-    "type": "com.musqet.preimage",
-    "credential": {
-      "type": "com.musqet.preimage",
-      "preimage": "c3a1...d9f2",
-      "checkout_id": "chk_01HXYZ"
-    }
+  "payment": {
+    "instruments": [
+      {
+        "id": "ln_bolt12_01HXYZ",
+        "handler_id": "bolt12",
+        "type": "com.musqet.preimage",
+        "credential": {
+          "type": "com.musqet.preimage",
+          "preimage": "c3a1...d9f2",
+          "checkout_id": "chk_01HXYZ"
+        }
+      }
+    ]
   }
 }
 ```
 
+#### Retry on Invoice Expiry
+
+If the BOLT12 invoice expires before the Platform completes payment, the
+Platform MAY repeat Steps 1–3 with the same `checkout_id` to obtain a
+fresh invoice. The `payer_note` carries the same `checkout_id`, so the
+Business's node will bind the new invoice to the same order.
+
 ### Business Integration
 
 1. Advertise the offer in `config.offer`.
-2. On receiving a payment credential, compute `payment_hash = SHA256(preimage)`,
+2. The Business's Lightning node MUST accept `payer_note` values of at
+   least 64 bytes and persist them alongside the issued invoice.
+3. On receiving a payment credential, compute `payment_hash = SHA256(preimage)`,
    look it up in the node's settled invoice index, read the recorded
    `payer_note`, and match it to `credential.checkout_id`.
-3. Apply the four verification checks from [Verification](#verification).
+4. Apply the four verification checks from [Verification](#verification).
 
 ### Limitations
 
@@ -343,13 +351,9 @@ HTTP-based, widely supported by wallets, but sats-only.
     "handlers": [
       {
         "id": "lnurl-pay",
-        "name": "com.musqet.lnurl-pay",
         "version": "2026-04-22",
         "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning-network-payment-handler.md",
-        "config_schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/lnurl-pay.config.json",
-        "instrument_schemas": [
-          "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
-        ],
+        "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/lnurl-pay.config.json",
         "available_instruments": [
           { "type": "com.musqet.preimage" }
         ],
@@ -411,10 +415,11 @@ Response (LUD-06):
 The Platform MUST verify:
 
 - `tag` equals `"payRequest"`.
-- `commentAllowed` is present and `>= 64`. If the endpoint does not
-  support comments or `commentAllowed < 64`, the Platform MUST abort
-  with an error — the LNURL endpoint does not meet the requirements of
-  this profile.
+- `commentAllowed` is present and `>= max(64, len(checkout_id))`. The
+  minimum of 64 is the profile prerequisite; the `len(checkout_id)`
+  check ensures the specific checkout identifier fits. If either
+  condition is not met, the Platform MUST abort — the LNURL endpoint
+  does not meet the requirements of this profile.
 - `metadata` is retained for the description-hash check in Step 2.
 
 #### Step 2: Request BOLT11
@@ -430,8 +435,8 @@ GET {callback}?amount={msats}&comment={checkout_id}
   `amount` MUST be within `[minSendable, maxSendable]`. If the checkout
   total falls outside this range, the Platform MUST abort and surface a
   `amount_out_of_range` error.
-- `comment` MUST be set to the UCP `checkout_id`. The Platform MUST
-  verify that `commentAllowed >= len(checkout_id)` (checked in Step 1).
+- `comment` MUST be set to the UCP `checkout_id` (length validated in
+  Step 1).
 
 Response:
 
@@ -542,13 +547,9 @@ This profile is the most full-featured and operationally complex.
     "handlers": [
       {
         "id": "invoice-api",
-        "name": "com.musqet.invoice-api",
         "version": "2026-04-22",
         "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning-network-payment-handler.md",
-        "config_schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/invoice-api.config.json",
-        "instrument_schemas": [
-          "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/instrument.json"
-        ],
+        "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/heads/main/lightning/invoice-api.config.json",
         "available_instruments": [
           { "type": "com.musqet.preimage" }
         ],
@@ -576,6 +577,14 @@ This profile is the most full-featured and operationally complex.
 Note: a `verify_endpoint` is **not** advertised in the UCP profile because
 verification is a Business↔Provider concern, not agent-visible. The
 Business learns the verify endpoint during onboarding with the Provider.
+
+> **Platform config.** The Platform does not require onboarding with the
+> Invoice Provider. The `checkout_id` serves as the capability token.
+> There is no separate `platform_config` schema.
+>
+> **Response config.** No additional runtime state beyond the static
+> handler config is returned in checkout responses. There is no separate
+> `response_config` schema.
 
 ### Platform Integration
 
@@ -627,18 +636,34 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 | `payment_hash` | 64-char hex | Payment hash of the issued invoice. Informational for the Platform; the Business re-derives it from the credential's `preimage` during verification. |
 | `currency`, `amount` | | Echo of the request. |
 | `amount_sats` | integer | Lightning amount in sats, locked at issuance. |
-| `fx_rate` | number | Sats per minor unit of `currency`. Omitted when `currency == "SAT"`. Locked at issuance — does not move with market. |
+| `fx_rate` | number | Conversion rate: `fx_rate = amount_sats / amount` (sats per minor unit of `currency`). Omitted when `currency == "SAT"`. Locked at issuance — does not move with market. |
 | `expires_at` | ISO-8601 | Invoice expiry. |
 
 **Idempotency:** repeat requests with the same `(merchant_id, checkout_id)`
 that also match `(currency, amount)` MUST return the same invoice. If
 `(currency, amount)` differs from the existing invoice, the Provider MUST
-return `409 amount_mismatch`.
+return `409 amount_mismatch`. If the existing invoice has expired without
+payment, the Provider MUST issue a new invoice for the same
+`(merchant_id, checkout_id)` (with a new `payment_hash` and refreshed
+`expires_at`) and return `201`.
 
 **Authentication (Platform → Provider):** no per-agent authentication is
 required. The `checkout_id` (opaque, unguessable, Business-issued) acts as
 the capability token. Providers MUST rate-limit per
 `(merchant_id, client-ip)` to mitigate abuse.
+
+#### Submit Credential
+
+Same shape as [BOLT12 Step 4](#step-4-submit-credential), with
+`handler_id: "invoice-api"`.
+
+#### Retry on Invoice Expiry
+
+If the BOLT11 invoice expires before the Platform completes payment, the
+Platform MAY re-POST to `{invoice_endpoint}` with the same
+`(merchant_id, checkout_id, currency, amount)`. The Provider MUST issue a
+new invoice (see Idempotency above) and return `201`. The Platform then
+pays the fresh invoice and submits the new preimage.
 
 ### Business Integration
 
