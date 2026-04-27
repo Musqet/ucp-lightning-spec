@@ -135,19 +135,9 @@ The `version`, `spec`, `schema`, and `available_instruments` fields follow
 the same pattern for all three profiles — only `schema` and `config` differ.
 Profile sections below show only the `config` object.
 
-> **No `platform_config` or `response_config`.** None of the three profiles
-> require Platform-side onboarding or return additional runtime state beyond
-> the static handler config. There are no separate `platform_config` or
-> `response_config` schemas.
-
 ### Payment Instrument
 
 **Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/instrument.json)
-— extends UCP `payment_instrument.json` via `allOf`. This spec introduces
-the instrument type `com.musqet.preimage`, shared across all three profiles.
-The instrument `type` and credential `type` use the same constant because
-Lightning has a single credential form (preimage); there is no need for a
-separate category vs. discriminator split.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -155,14 +145,10 @@ separate category vs. discriminator split.
 | `handler_id` | string | Yes | MUST match the `id` of a handler instance under one of the `com.musqet.*` families in the Business's `payment_handlers`. |
 | `type` | const `com.musqet.preimage` | Yes | Credential type. Same across all profiles. |
 | `credential` | object | Yes | See [Payment Credential](#payment-credential). |
-| `selected` | boolean | No | `true` when this instrument is being submitted for completion. |
-| `billing_address` | object | No | Not used for payment verification (no AVS). MAY be provided for order fulfillment. |
-| `display` | object | No | Optional display metadata (`label`, `icon_url`) for Platform UIs. |
 
 ### Payment Credential
 
 **Schema:** [`lightning/credential.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/credential.json)
-— extends UCP `payment_credential.json` via `allOf`.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -174,11 +160,6 @@ The credential is intentionally minimal. `payment_hash` is derived as
 `SHA256(preimage)`; the BOLT11 is already held by the Business, so
 re-submitting it adds nothing a forger couldn't also provide.
 
-> **Closed wire schemas.** Both `instrument.json` and `credential.json` use
-> `additionalProperties: false` alongside `allOf` references to UCP base
-> schemas. This intentionally locks the property set — if a future UCP
-> version adds base fields, these schemas must be updated to redeclare them.
-> The base `$ref` is pinned to a specific UCP version to make this explicit.
 
 > **Credential expiry exemption.** A Lightning preimage is a one-time proof
 > of a specific HTLC settlement, not a reusable token. Its validity is
@@ -464,8 +445,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 → `409 amount_mismatch`. Expired invoice → new invoice with `201`.
 
 **Authentication:** no per-agent auth. The `checkout_id` (opaque,
-unguessable, Business-issued) acts as capability token. Providers MUST
-rate-limit per `(merchant_id, client-ip)`.
+unguessable, Business-issued) acts as capability token.
 
 #### Pay and Capture Preimage
 
@@ -479,7 +459,7 @@ credential.
 
 #### Option A: Local verification
 
-The Business verifies preimages locally using the four
+The Business verifies preimages locally using the five
 [Verification](#verification) checks.
 
 #### Option B: Provider-mediated verification
@@ -502,7 +482,6 @@ is between the Business and Provider).
 
 ```json
 {
-  "valid": true,
   "settled": true,
   "invoice_id": "inv_01HXYZ",
   "payment_hash": "<64-hex-payment-hash>",
@@ -537,7 +516,7 @@ to another Business.
 | **Invoice expiry** | Pay well before `expires_at`. Retry with same `checkout_id` if expired. |
 | **Amount tampering** | Business MUST verify paid sats against expected amount locked at invoice creation. |
 | **`checkout_id` entropy** | The `checkout_id` is the binding key across all profiles. Businesses MUST ensure checkout identifiers are unguessable (e.g., CSPRNG-generated, ≥128 bits of entropy). |
-| **Rate limiting** | Providers and LNURL endpoints MUST rate-limit per `(merchant_id, client-ip)`. |
+| **Rate limiting** | Providers and LNURL endpoints SHOULD apply rate limiting to protect against abuse. The specific strategy is implementation-defined. |
 | **Cross-tenant info leak** | `/verify` MUST return `404 invoice_not_found` uniformly for non-owned and non-existent invoices. |
 | **LNURL metadata hash** | Platform MUST verify `description_hash == SHA256(metadata)` before paying (LUD-06). Prevents invoice-substitution attacks. |
 | **Comment integrity** | LUD-12 `comment` is over TLS. Business MUST persist comment atomically with invoice creation. Third-party LNURL services MUST be verified to persist comments. |

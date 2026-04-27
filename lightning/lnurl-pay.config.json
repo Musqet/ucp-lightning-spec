@@ -20,6 +20,5 @@
       "type": "string",
       "description": "Optional human-readable label for payment-method UI."
     }
-  },
-  "additionalProperties": false
+  }
 }

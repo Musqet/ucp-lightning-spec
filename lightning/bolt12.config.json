@@ -24,6 +24,5 @@
       "default": ["SAT"],
       "description": "Currency codes the offer accepts (e.g., SAT, USD). When omitted, platforms SHOULD assume SAT only."
     }
-  },
-  "additionalProperties": false
+  }
 }

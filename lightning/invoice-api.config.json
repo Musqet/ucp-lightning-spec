@@ -29,6 +29,5 @@
       "default": ["SAT"],
       "description": "Currency codes the Provider accepts for this Business (e.g., SAT, USD, EUR, GBP). When omitted, platforms SHOULD assume only SAT is supported."
     }
-  },
-  "additionalProperties": false
+  }
 }
