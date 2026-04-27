@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/instrument.json",
+  "$id": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-27/lightning/instrument.json",
   "title": "Lightning Payment Instrument",
   "description": "Payment instrument shared across the com.musqet.* handler family. Carries a preimage credential proving Lightning Network settlement.",
   "type": "object",
@@ -18,7 +18,7 @@
       "const": "com.musqet.preimage"
     },
     "credential": {
-      "$ref": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-23/lightning/credential.json"
+      "$ref": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-27/lightning/credential.json"
     }
   }
 }
