@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-27/lightning/lnurl-pay.config.json",
+  "$id": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-04-28/lightning/lnurl-pay.config.json",
   "title": "Lightning LNURL-pay Handler Config",
   "description": "Configuration for the com.musqet.lnurl-pay payment handler. The Business advertises an LNURL-pay endpoint or a Lightning Address; the Platform executes the LUD-06 flow to obtain a BOLT11. The endpoint MUST support LUD-12 comments with commentAllowed large enough to hold the checkout_id.",
   "type": "object",
