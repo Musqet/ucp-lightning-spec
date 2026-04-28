@@ -400,9 +400,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
   "merchant_id": "biz_abc123",
   "checkout_id": "chk_01HXYZ",
   "currency": "USD",
-  "amount": 2500,
-  "description": "Order #4231",
-  "expiry_seconds": 600
+  "amount": 2500
 }
 ```
 
@@ -412,8 +410,6 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 | `checkout_id` | string | Yes | Idempotency key scoped per `merchant_id`. |
 | `currency` | string, 3 chars | Yes | `SAT` or ISO-4217 code. MUST be in `supported_currencies`. |
 | `amount` | integer, ≥ 1 | Yes | Minor units of `currency` (cents for USD, pence for GBP). For `SAT`, amount is whole sats (sat is its own minor unit). |
-| `description` | string | No | Human-readable invoice description. |
-| `expiry_seconds` | integer, ≥ 1 | No | Defaults to 600 (10 min). |
 
 **Response (201 Created / 200 OK on idempotent retry):**
 
