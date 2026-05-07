@@ -4,21 +4,13 @@
   "title": "Lightning Invoice API Handler Config",
   "description": "Configuration for the com.musqet.invoice-api payment handler. The Business advertises a Provider-hosted HTTP endpoint that issues BOLT11 invoices; the Platform POSTs to it to obtain an invoice. Verification happens between Business and Provider and is not agent-visible.",
   "type": "object",
-  "required": ["merchant_id", "invoice_endpoint"],
+  "required": ["invoice_endpoint"],
   "properties": {
-    "merchant_id": {
-      "type": "string",
-      "description": "Public Business identifier at the Invoice Provider. NOT a secret."
-    },
     "invoice_endpoint": {
       "type": "string",
       "format": "uri",
       "pattern": "^https://",
-      "description": "Provider HTTPS endpoint for BOLT11 invoice creation. Called by the Platform during Acquisition. MUST use https."
-    },
-    "display_name": {
-      "type": "string",
-      "description": "Optional human-readable label for payment-method UI."
+      "description": "Provider HTTPS endpoint for BOLT11 invoice creation, scoped per Business (the URL identifies the Business implicitly). Called by the Platform during Acquisition. MUST use https."
     },
     "supported_currencies": {
       "type": "array",

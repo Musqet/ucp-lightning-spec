@@ -11,10 +11,6 @@
       "pattern": "^lno1[a-z0-9]+$",
       "description": "The Business's BOLT12 offer string (bech32-encoded). MAY be amountless or amount-fixed."
     },
-    "display_name": {
-      "type": "string",
-      "description": "Optional human-readable label for payment-method UI (e.g., 'Pay with Lightning')."
-    },
     "supported_currencies": {
       "type": "array",
       "items": {

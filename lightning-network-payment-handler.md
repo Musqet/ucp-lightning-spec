@@ -254,7 +254,6 @@ Set `handler_id` to the Business-assigned instance `id` of the handler used.
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
 | `offer` | BOLT12 offer string (`lno1...`) | Yes | Static BOLT12 offer. MAY be amountless or amount-fixed. |
-| `display_name` | string | No | Human-readable label for payment-method UI. |
 | `supported_currencies` | array of ISO-4217 or `SAT` | No | Defaults to `["SAT"]`. |
 
 ### Platform Integration
@@ -310,7 +309,6 @@ credential.
 |:------|:-----|:---------|:------------|
 | `lightning_address` | string | One of `lightning_address` or `lnurl` | `user@host` → `https://{host}/.well-known/lnurlp/{user}`. Endpoint MUST support LUD-12 comments with `commentAllowed` large enough to hold the `checkout_id`. |
 | `lnurl` | string | One of `lightning_address` or `lnurl` | Bech32 `lnurl1...` or direct `https://` URL. MUST support LUD-12 comments with `commentAllowed` large enough to hold the `checkout_id`. |
-| `display_name` | string | No | Human-readable label. |
 
 ### Platform Integration
 
@@ -379,9 +377,7 @@ credential.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
-| `merchant_id` | string | Yes | Public Business identifier at the Provider. NOT a secret. |
-| `invoice_endpoint` | URI (`https://`) | Yes | Provider endpoint for BOLT11 invoice creation. |
-| `display_name` | string | No | Human-readable label. |
+| `invoice_endpoint` | URI (`https://`) | Yes | Provider endpoint for BOLT11 invoice creation, scoped per Business (the URL identifies the Business implicitly). |
 | `supported_currencies` | array of 3-char codes | No | E.g. `["SAT", "USD", "EUR"]`. Omitted means `["SAT"]`. |
 
 The `verify_endpoint` is **not** in the UCP profile — verification is a
@@ -397,7 +393,6 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 
 ```json
 {
-  "merchant_id": "biz_abc123",
   "checkout_id": "chk_01HXYZ",
   "currency": "USD",
   "amount": 2500
@@ -406,8 +401,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
-| `merchant_id` | string | Yes | MUST match the Business's UCP profile. |
-| `checkout_id` | string | Yes | Idempotency key scoped per `merchant_id`. |
+| `checkout_id` | string | Yes | Idempotency key for invoice creation at this endpoint. |
 | `currency` | string, 3 chars | Yes | `SAT` or ISO-4217 code. MUST be in `supported_currencies`. |
 | `amount` | integer, ≥ 1 | Yes | Minor units of `currency` (cents for USD, pence for GBP). For `SAT`, amount is whole sats (sat is its own minor unit). |
 
@@ -436,7 +430,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 | `fx_rate` | number | `amount_sats / amount` (sats per minor unit of `currency`, e.g., sats per cent for USD). Omitted when `currency == "SAT"`. Locked at issuance. |
 | `expires_at` | ISO-8601 | Invoice expiry. |
 
-**Idempotency:** same `(merchant_id, checkout_id)` with matching
+**Idempotency:** same `checkout_id` with matching
 `(currency, amount)` returns the same invoice. Mismatched `(currency, amount)`
 → `409 amount_mismatch`. Expired invoice → new invoice with `201`.
 
@@ -534,7 +528,7 @@ conventions (`{ "status": "ERROR", "reason": "..." }`).
 | 400 | `unsupported_currency` | `validation_error` | Currency not in `supported_currencies`. | No |
 | 400 | `amount_out_of_range` | `validation_error` | Amount violates min/max. | No |
 | 403 | `binding_mismatch` | `payment_declined` | Preimage bound to a different `checkout_id` (same Business). | No |
-| 404 | `merchant_not_found` | `configuration_error` | Unknown `merchant_id`. | No |
+| 404 | `merchant_not_found` | `configuration_error` | Endpoint does not resolve to a known Business. | No |
 | 404 | `invoice_not_found` | `payment_declined` | No matching invoice (includes cross-tenant hiding). | No |
 | 409 | `amount_mismatch` | `conflict` | Idempotent retry with different `(currency, amount)`. | No |
 | 409 | `lightning_not_enabled` | `configuration_error` | Business hasn't finished Lightning onboarding. | Yes (after onboarding) |
