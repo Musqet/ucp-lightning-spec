@@ -17,7 +17,7 @@
 # Lightning Network Payment Handlers
 
 * **Handler Families:** `com.musqet.bolt12`, `com.musqet.lnurl-pay`, `com.musqet.invoice-api`
-* **Version:** `2026-05-07`
+* **Version:** `2026-06-11`
 * **Target UCP Version:** `2026-04-08`
 * **Authors:** [Musqet](https://musqet.com)
 
@@ -117,9 +117,9 @@ Full example (BOLT12):
       "com.musqet.bolt12": [
         {
           "id": "bolt12_main",
-          "version": "2026-05-07",
-          "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-05-07/lightning-network-payment-handler.md",
-          "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-05-07/lightning/bolt12.config.json",
+          "version": "2026-06-11",
+          "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning-network-payment-handler.md",
+          "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/bolt12.config.json",
           "available_instruments": [
             { "type": "com.musqet.preimage" }
           ],
@@ -137,7 +137,7 @@ Profile sections below show only the `config` object.
 
 ### Payment Instrument
 
-**Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-05-07/lightning/instrument.json)
+**Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/instrument.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -148,7 +148,7 @@ Profile sections below show only the `config` object.
 
 ### Payment Credential
 
-**Schema:** [`lightning/credential.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-05-07/lightning/credential.json)
+**Schema:** [`lightning/credential.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/credential.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -209,6 +209,11 @@ same `checkout_id` into the new invoice. The Platform MUST NOT submit a
 preimage from any prior invoice (expired or superseded) — only the preimage
 from the most recently paid invoice is valid.
 
+Re-acquiring after expiry preserves the `(currency, amount)`. Correcting the
+amount on an unpaid checkout is a distinct operation supported only by the
+Invoice API profile — see
+[Re-pricing an Unpaid Checkout](#re-pricing-an-unpaid-checkout-optional).
+
 ### Completing the Checkout
 
 The Platform submits the preimage credential in the UCP
@@ -249,7 +254,7 @@ Set `handler_id` to the Business-assigned instance `id` of the handler used.
 
 ### Handler Configuration
 
-**Schema:** [`lightning/bolt12.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-05-07/lightning/bolt12.config.json)
+**Schema:** [`lightning/bolt12.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/bolt12.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -303,7 +308,7 @@ credential.
 
 ### Handler Configuration
 
-**Schema:** [`lightning/lnurl-pay.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-05-07/lightning/lnurl-pay.config.json)
+**Schema:** [`lightning/lnurl-pay.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/lnurl-pay.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -373,7 +378,7 @@ credential.
 
 ### Handler Configuration
 
-**Schema:** [`lightning/invoice-api.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-05-07/lightning/invoice-api.config.json)
+**Schema:** [`lightning/invoice-api.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/invoice-api.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -404,6 +409,7 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 | `checkout_id` | string | Yes | Idempotency key for invoice creation at this endpoint. |
 | `currency` | string, 3 chars | Yes | `SAT` or ISO-4217 code. MUST be in `supported_currencies`. |
 | `amount` | integer, ≥ 1 | Yes | Minor units of `currency` (cents for USD, pence for GBP). For `SAT`, amount is whole sats (sat is its own minor unit). |
+| `payment_hash` | 64-char hex | No | Possession proof, required only when **re-pricing** an unpaid checkout (re-submitting an existing `checkout_id` with a changed `(currency, amount)`). MUST equal the `payment_hash` of an invoice previously issued for this `checkout_id`. Ignored on first creation and same-amount idempotent retry. See [Re-pricing an Unpaid Checkout](#re-pricing-an-unpaid-checkout-optional). |
 
 **Response (201 Created / 200 OK on idempotent retry):**
 
@@ -430,12 +436,66 @@ Creates (or retrieves, if idempotent) a BOLT11 invoice.
 | `fx_rate` | number | `amount_sats / amount` (sats per minor unit of `currency`, e.g., sats per cent for USD). Omitted when `currency == "SAT"`. Locked at issuance. |
 | `expires_at` | ISO-8601 | Invoice expiry. |
 
-**Idempotency:** same `checkout_id` with matching
-`(currency, amount)` returns the same invoice. Mismatched `(currency, amount)`
-→ `409 amount_mismatch`. Expired invoice → new invoice with `201`.
+**Idempotency:** same `checkout_id` with matching `(currency, amount)`
+returns the same invoice. Expired invoice → new invoice with `201`.
+Mismatched `(currency, amount)` → `409 amount_mismatch`, **unless** the
+Provider supports re-pricing and the request satisfies the gate in
+[Re-pricing an Unpaid Checkout](#re-pricing-an-unpaid-checkout-optional).
 
 **Authentication:** no per-agent auth. The `checkout_id` (opaque,
 unguessable, Business-issued) acts as capability token.
+
+#### Re-pricing an Unpaid Checkout (optional)
+
+A Provider **MAY** allow a Platform to correct the amount on an **unpaid**
+checkout: an agent that obtained an invoice at the wrong total (the order
+changed, or it sent the wrong amount) re-submits the same `checkout_id`
+with the corrected `(currency, amount)` and receives a fresh invoice for
+the new total, instead of dead-ending on `amount_mismatch`.
+
+A Provider that does **not** support re-pricing MUST return
+`409 amount_mismatch` for a mismatched `(currency, amount)` (the default
+contract above). A Provider that **does** support it MUST apply all of the
+following to such a request:
+
+1. **Require `payment_hash`.** The caller MUST echo the `payment_hash` of
+   an invoice previously issued for this `checkout_id`. Omitted →
+   `400 invalid_request`; present but matching no invoice issued for this
+   `checkout_id` → `403 binding_mismatch`. This is a *possession check*,
+   not a secret — `payment_hash` is visible to the paying wallet and is
+   returned on same-amount idempotent retry (see
+   [Security Considerations](#security-considerations)).
+2. **Refuse once value is committed.** If any invoice for the checkout is
+   settled or in flight, the amount is locked → `409 amount_mismatch`.
+   Re-pricing applies only while nothing has been paid.
+3. **Never leave two invoices simultaneously payable.** The Provider MUST
+   invalidate (cancel at the node) every still-payable invoice for the
+   checkout **before** the replacement becomes payable, and MUST change
+   the amount atomically with respect to settlement, so a payment landing
+   mid-re-price is never accepted against a stale amount. If a superseded
+   invoice cannot be cancelled, the Provider MUST refuse the re-price
+   (`409 amount_mismatch`) rather than mint a second payable invoice.
+
+On success the Provider returns the new invoice exactly as for creation
+(`200 OK` or `201 Created`), carrying the new `amount`, `amount_sats`,
+`fx_rate`, `expires_at`, `payment_hash`, and `bolt11`.
+
+**Request (re-price):**
+
+```json
+{
+  "checkout_id": "chk_01HXYZ",
+  "currency": "USD",
+  "amount": 3000,
+  "payment_hash": "<64-hex-payment-hash-of-a-prior-invoice>"
+}
+```
+
+[Verification](#verification) is unchanged: the customer pays the current
+invoice and the Business verifies the single settled `payment_hash`
+against the amount locked at *that* invoice's issuance. Superseded
+invoices, being cancelled, can never settle, so the
+one-credential-per-checkout guarantee holds.
 
 #### Pay and Capture Preimage
 
@@ -506,6 +566,7 @@ to another Business.
 | **Invoice expiry** | Pay well before `expires_at`. Retry with same `checkout_id` if expired. |
 | **Amount tampering** | Business MUST verify paid sats against expected amount locked at invoice creation. |
 | **`checkout_id` entropy** | The `checkout_id` is the binding key across all profiles. Businesses MUST ensure checkout identifiers are unguessable (e.g., CSPRNG-generated, ≥128 bits of entropy). |
+| **Re-price possession check** | Re-pricing an unpaid checkout (Invoice API) invalidates a live invoice, so the Provider MUST require the caller to echo a prior invoice's `payment_hash` (a second factor beyond the `checkout_id` capability token). This is a *possession check, not a secret*: `payment_hash` is revealed to the paying wallet and returned on same-amount retry, so it raises the bar against a third party who knows only the `checkout_id` but does not fully close re-price abuse where the `checkout_id` is itself exposed. Providers SHOULD rate-limit. Abuse is bounded to griefing an *unpaid* session (recoverable; no settled payment is ever affected, and the amount changes atomically with respect to settlement). |
 | **Rate limiting** | Providers and LNURL endpoints SHOULD apply rate limiting to protect against abuse. The specific strategy is implementation-defined. |
 | **Cross-tenant info leak** | `/verify` MUST return `404 invoice_not_found` uniformly for non-owned and non-existent invoices. |
 | **LNURL metadata hash** | Platform MUST verify `description_hash == SHA256(metadata)` before paying (LUD-06). Prevents invoice-substitution attacks. |
@@ -524,13 +585,13 @@ conventions (`{ "status": "ERROR", "reason": "..." }`).
 
 | HTTP | Code | UCP Category | Meaning | Retryable |
 |:-----|:-----|:-------------|:--------|:----------|
-| 400 | `invalid_request` | `validation_error` | Schema validation or invalid field values. | No |
+| 400 | `invalid_request` | `validation_error` | Schema validation or invalid field values; or `payment_hash` omitted on a re-price (changed `(currency, amount)` for an existing `checkout_id`). | No |
 | 400 | `unsupported_currency` | `validation_error` | Currency not in `supported_currencies`. | No |
 | 400 | `amount_out_of_range` | `validation_error` | Amount violates min/max. | No |
-| 403 | `binding_mismatch` | `payment_declined` | Preimage bound to a different `checkout_id` (same Business). | No |
+| 403 | `binding_mismatch` | `payment_declined` | (verify) Preimage bound to a different `checkout_id`; or (re-price) `payment_hash` matches no invoice issued for this `checkout_id`. Same Business. | No |
 | 404 | `merchant_not_found` | `configuration_error` | Endpoint does not resolve to a known Business. | No |
 | 404 | `invoice_not_found` | `payment_declined` | No matching invoice (includes cross-tenant hiding). | No |
-| 409 | `amount_mismatch` | `conflict` | Idempotent retry with different `(currency, amount)`. | No |
+| 409 | `amount_mismatch` | `conflict` | Idempotent retry with a different `(currency, amount)`, where the checkout cannot be re-priced — re-pricing is unsupported, or the checkout is already paid/in-flight, or a superseded invoice cannot be cancelled. | No |
 | 409 | `lightning_not_enabled` | `configuration_error` | Business hasn't finished Lightning onboarding. | Yes (after onboarding) |
 | 410 | `invoice_expired` | `payment_expired` | Invoice expired unpaid. Platform re-acquires a new invoice with the same `checkout_id`. | Yes (re-acquire) |
 | 429 | `rate_limited` | `rate_limited` | Rate limit exceeded. | Yes (backoff) |
