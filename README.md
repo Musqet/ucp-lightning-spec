@@ -19,7 +19,7 @@ All three produce the same credential: a SHA-256 preimage proving HTLC settlemen
 
 ## Status
 
-**Beta** — version `2026-05-07`, targeting UCP `2026-04-08`.
+**Beta** — version `2026-06-19`, targeting UCP `2026-04-08`.
 
 ## License
 
