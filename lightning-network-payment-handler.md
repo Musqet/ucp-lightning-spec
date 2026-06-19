@@ -17,7 +17,7 @@
 # Lightning Network Payment Handlers
 
 * **Handler Families:** `com.musqet.bolt12`, `com.musqet.lnurl-pay`, `com.musqet.invoice-api`
-* **Version:** `2026-06-11`
+* **Version:** `2026-06-19`
 * **Target UCP Version:** `2026-04-08`
 * **Authors:** [Musqet](https://musqet.com)
 
@@ -117,9 +117,9 @@ Full example (BOLT12):
       "com.musqet.bolt12": [
         {
           "id": "bolt12_main",
-          "version": "2026-06-11",
-          "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning-network-payment-handler.md",
-          "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/bolt12.config.json",
+          "version": "2026-06-19",
+          "spec": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-19/lightning-network-payment-handler.md",
+          "schema": "https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-19/lightning/bolt12.config.json",
           "available_instruments": [
             { "type": "com.musqet.preimage" }
           ],
@@ -137,7 +137,7 @@ Profile sections below show only the `config` object.
 
 ### Payment Instrument
 
-**Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/instrument.json)
+**Schema:** [`lightning/instrument.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-19/lightning/instrument.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -148,7 +148,7 @@ Profile sections below show only the `config` object.
 
 ### Payment Credential
 
-**Schema:** [`lightning/credential.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/credential.json)
+**Schema:** [`lightning/credential.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-19/lightning/credential.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -254,7 +254,7 @@ Set `handler_id` to the Business-assigned instance `id` of the handler used.
 
 ### Handler Configuration
 
-**Schema:** [`lightning/bolt12.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/bolt12.config.json)
+**Schema:** [`lightning/bolt12.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-19/lightning/bolt12.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -308,7 +308,7 @@ credential.
 
 ### Handler Configuration
 
-**Schema:** [`lightning/lnurl-pay.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/lnurl-pay.config.json)
+**Schema:** [`lightning/lnurl-pay.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-19/lightning/lnurl-pay.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
@@ -378,7 +378,7 @@ credential.
 
 ### Handler Configuration
 
-**Schema:** [`lightning/invoice-api.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-11/lightning/invoice-api.config.json)
+**Schema:** [`lightning/invoice-api.config.json`](https://raw.githubusercontent.com/Musqet/ucp-lightning-spec/refs/tags/v2026-06-19/lightning/invoice-api.config.json)
 
 | Field | Type | Required | Description |
 |:------|:-----|:---------|:------------|
